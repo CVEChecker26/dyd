@@ -1,25 +1,83 @@
 # Methodology
 
-dyd↻ compares **declared data** with rules derived from official advisories. It never scans anything. This document explains the verdict logic, the comparison methods, every rule with its source, and what was and was not verified.
+dyd↻ compares **declared details** with rules derived from official advisories. It does not scan, log in to, or inspect any server. This document explains what the assessment can and cannot determine, how each result is calculated, the rules and their sources, and what was and was not verified.
 
-## Verdict logic and precedence
+## What a domain can and cannot tell dyd↻
 
-The engine (`engine.js`, pure logic, no DOM/network/storage) applies these steps in this exact order and returns at the first step that decides.
+A static web page cannot read the PHP runtime, packages or processes of a remote server. Entering a domain therefore does **not** reveal which PHP version serves it. Cross-origin browser rules also hide response headers, so dyd↻ cannot read a `Server` or `X-Powered-By` header, and it would not trust one: a header, a CMS or a framework does not identify the PHP runtime.
 
-1. **Invalid input**: a missing or malformed field returns status `invalid` with the field and a reason; no verdict is shown. Version strings are trimmed, at most 64 characters and must match `^[A-Za-z0-9.+~:_-]+$`. For upstream-like environments the version must be `MAJOR.MINOR.PATCH` (each part up to six digits, no leading zeros), or look like a pre-release (handled in step 3). Anything else, including a distribution-style string such as `8.4.27-1~deb12u1` entered for an upstream, Docker or Plesk environment, is `invalid` with reason `format`: the visitor is asked to correct the answer rather than receiving a verdict. Distribution package strings are only judged in the Debian and Ubuntu environments, where a non-matching format gives `unexpected_package_format`.
-2. **Environment checks** (`verify`): "something else / not sure" or an environment or release without a verified rule (`platform_not_covered`), a Docker image that is not the official `php` image (`docker_not_official`), Plesk on Windows (`plesk_windows`).
-3. **Version parsing** (`verify`): pre-release versions and branches listed as pre-release (`prerelease`); PHP 8.1 and older (`eol_branch`, or `plesk_eol_branch` on Plesk); other branches without a rule (`unknown_branch`); a distribution package version that does not match the release's expected format (`unexpected_package_format`).
-4. **Per-advisory comparison** with the method of that environment only (below). Each advisory ends as "fixed" or "affected".
-5. **Version source** not confirmed as "the PHP or package that actually serves the site" returns `verify` (`version_source_unconfirmed`), whether the version looks fixed or affected.
-6. At least one advisory affected returns **affected**. The restart answer is irrelevant here.
-7. All fixed but the restart not answered "yes" returns `verify` (`restart_not_confirmed`).
-8. All fixed, source confirmed and restart confirmed returns **remediated**.
+The only thing dyd↻ can do with a domain is the optional reachability check (below). Everything about PHP comes from what the user declares.
 
-Whenever sources conflict, are unreachable or doubt remains, the rule is "Needs further verification" or no rule. Nothing is guessed.
+### Optional reachability check
+
+When the user presses the button, the browser sends one HTTPS `GET` request to `https://<host>/` (host name only, never the path or query), with `mode: "no-cors"`, no credentials, no referrer and an 8-second timeout. The answer is opaque: the page can only learn that **some HTTP response arrived**. It is recorded as verified evidence of reachability from this browser, and nothing more.
+
+A failed request is **inconclusive**: a blocker, a certificate problem, a firewall, CORS-related browser rules, an HTTP-only site or a timeout all produce the same failure. It is never reported as "down", "vulnerable" or "fine", and it never changes a status. The Content-Security-Policy allows `connect-src https:` for this single purpose (see SECURITY.md).
+
+Browsers require `redirect: "follow"` in `no-cors` mode, so the answer can come after a redirect to another host; the page says "possibly after a redirect". DNS cannot be checked from a static page: a public-looking name can resolve to a private address, and the denylist covers only common internal suffixes.
+
+Domains are normalised to a public host name. The page rejects URLs with credentials or ports, IP addresses (including decimal and hex forms), single-label names, common internal suffixes (`.local`, `.localhost`, `.localdomain`, `.internal`, `.lan`, `.home`, `.corp`, `.intranet`, `.private`, `.router`, `.gateway`, `.onion`, `.arpa`, `.test`, `.invalid`, `.example`), other schemes, and control or line-separator characters.
+
+## Evidence model
+
+Every fact in a report is labelled:
+
+| Label | Meaning | Examples |
+|---|---|---|
+| Verified by dyd↻ | Something dyd↻ checked itself | The rule and its sources (re-read on the date shown); a reachability answer |
+| Declared by you | Not verified; dyd↻ relies on the user | Domain, hosting, package source, PHP version, where it was read, update and restart answers |
+| Inferred | A conclusion drawn from the facts above | "The declared version is below the fixed version" |
+| Unknown or unconfirmed | Missing, assumed or not confirmed | An unreachable site, "I think so" answers, an unconfirmed runtime |
+
+Update and restart answers are always **declared**, never verified. "Assumed" answers are listed as unconfirmed.
+
+## The PHP announcement
+
+Source: <https://www.php.net/archive/2026.php#2026-10-21-5> (the stable archive link, not an `index.php#` anchor), read in full on 2026-10-22 from the page itself. The announcement does **not** list affected versions. dyd↻ uses it only for:
+
+- the fixed versions (8.5.12, 8.4.27, 8.3.36, 8.2.35), which equal the thresholds taken from the two GHSA advisories (the "affected" thresholds stay based on those advisories; no threshold was changed);
+- who is at risk: all PHP installations serving web requests, including PHP-FPM, Apache with mod_php, php-cgi, FrankenPHP and LiteSpeed, with the risk highest for mod_php (a demonstrated exploit where an unauthenticated request can trigger the attack before any application code runs);
+- PHP 8.1 and older no longer receiving updates from the PHP project, with some distributions and LTS vendors providing backported fixes;
+- the temporary mitigations and their limitations (below).
+
+**PHP 7.4, 8.0 and 8.1.** The announcement says the PHP security team provided minimal source backports for these branches on GitHub branches (`PHP-7.4-CVE-2026-109618-109619`, `PHP-8.0-CVE-2026-109618-109619`, `PHP-8.1-CVE-2026-109618-109619`), and no new versions were released. A version number on these branches therefore cannot prove anything either way, so a php.net, Docker or Plesk version on them is always "Needs further verification" (`eol_branch` or `plesk_eol_branch`), with a note and links to the announcement and the branch. Distribution packages keep using their own vendor rule.
+
+**PHP 8.6.** 8.6 is treated as a pre-release (`prerelease`, needs further verification). The announcement does not mention 8.6 at all. What is verified is in the php-src `NEWS` file of tag `php-8.6.0RC4` (dated 21 Oct 2026), which lists GHSA-w8hw-w9fx-j79w and GHSA-6wmf-4rv5-p3rp (CVE-2026-109618, CVE-2026-109619) as fixed. The page therefore says "8.6.0 RC4 contains the fixes" for RC4 and later, and, for earlier 8.6 pre-releases, that they are older than the first pre-release whose NEWS lists the fixes. It does not claim that earlier pre-releases are affected, because no source states it.
+
+**Execution model.** The optional question "How does the web server run PHP?" (PHP-FPM, Apache with mod_php, php-cgi, FrankenPHP, LiteSpeed, I don't know) never changes a status and produces no score. It only selects the restart instruction and, for mod_php on a result that is not remediated, shows the announcement's urgency sentence. "I don't know" explains where to look (hosting panel PHP handler or SAPI, "Server API" in an administrator-only phpinfo page, the provider). The model is declared; dyd↻ cannot detect it from a domain. The question is hidden for provider-managed PHP.
+
+**Mitigations.** Summarised from the announcement with its exact limitations and a link; no configuration block is offered, and no mitigation is described as protecting an installation. The announcement says only an update is a complete solution and that the measures reduce exposure to specific attack paths without making an installation fully fixed. Two cautions are dyd↻'s own and are labelled as such in `rules.json`: removing the memory limit lets one request use all available memory, and a low `post_max_size` can reject legitimate large requests. A mitigation never changes a status: a declared mitigation is recorded as declared evidence, and an affected version stays "Affected according to the available evidence". A restart alone does not fix an installation that has not been updated.
+
+## How each CVE is evaluated
+
+CVE-2026-109618 and CVE-2026-109619 are evaluated **separately**, each with its own status, evidence and next action. With the current rules both CVEs share the same fixed versions, so they currently get the same status, but the engine keeps them independent (tests use synthetic rules where they differ).
+
+Statuses: **Affected according to the available evidence**, **Remediation supported by the available evidence**, **Needs further verification**. "Remediation supported" is a statement about these two CVEs and the declared evidence only.
+
+The engine (`engine.js`, pure logic, no DOM/network/storage) applies these steps in this exact order and returns at the first step that decides:
+
+1. **Invalid input**: a missing or malformed field returns `invalid` with the field and a reason; no result is shown. Version strings are trimmed, at most 64 characters and match `^[A-Za-z0-9.+~:_-]+$`; for upstream-like environments they must be `MAJOR.MINOR.PATCH` (each part up to six digits, no leading zeros) or look like a pre-release. Anything else, including a package-style string entered for an upstream, Docker or Plesk environment, is `invalid` with reason `format`.
+2. **Environment checks** (`verify`): provider-managed PHP (`provider_managed`), unknown package source (`package_source_unknown`), another distribution (`platform_not_covered`), a non-official Docker image (`docker_not_official`), Plesk on Windows (`plesk_windows`) or an unknown Plesk system (`plesk_os_unknown`).
+3. **Unknown version** (`verify`, `version_unknown`).
+4. **Version parsing** (`verify`): pre-releases and pre-release branches (`prerelease`); PHP 8.1 and older (`eol_branch`, or `plesk_eol_branch`); other branches without a rule (`unknown_branch`); a package version in an unexpected format for the selected release (`unexpected_package_format`).
+5. **Per-CVE comparison** with the method of that environment only (below).
+6. **Conflict** (`verify`, `update_version_conflict`): the user says the update is installed (confirmed or assumed) but the declared version is below the fixed version. Evidence that conflicts is not turned into a conclusion.
+7. **Version source** (`verify`, `version_source_unconfirmed`): the version must come from a page served by the site, the hosting panel for this site, or provider support. A command-line reading or an unknown source is not confirmation, even if the version looks fixed or affected. Versions given by the hosting panel for the site or by provider support are taken to describe the runtime that serves the site; the declared answer does not record which runtime a provider had in mind.
+8. **Per CVE**: below the fixed version means affected (a restart and mitigations are irrelevant). At or above it, remediation is supported only if the update is **confirmed** (otherwise `verify`, `update_not_confirmed`), the user did not say that several PHP runtimes exist (otherwise `verify`, `multiple_runtimes`, because the declared version describes only one of them), and a restart is **confirmed** (otherwise `verify`, `restart_not_confirmed`).
+
+The overall result is "affected" if any CVE is affected, otherwise "needs further verification" if any CVE needs it, otherwise "remediation supported". Whenever sources conflict, are unreachable or doubt remains, the result is "Needs further verification" or no rule. Nothing is guessed.
+
+### Action plan
+
+The plan is a short ordered list of action ids chosen from the result (for example: install the update, restart the processes, confirm the PHP that serves the site, ask the provider). It only contains actions relevant to the environment and the result, and always ends with running the assessment again. The first item is shown as "Do this first".
 
 ### Why a restart is required
 
-Installing a fixed package does not change code that running PHP processes (PHP-FPM workers, Apache with mod_php, a running container) have already loaded. Until those are restarted or the container is recreated, the old code can still serve requests. The advisories themselves say that workers must be restarted when configuration mitigations are applied. A version that looks fixed is therefore not enough for "Remediated".
+Installing a fixed package does not change code that running PHP processes (PHP-FPM workers, Apache with mod_php, a running container) have already loaded. Until those are restarted or the container is recreated, the old code can still serve requests. The advisories themselves say that workers must be restarted when configuration mitigations are applied. A version that looks fixed is therefore not enough for "Remediation supported".
+
+### Vendor backports and provider-managed PHP
+
+Some vendors fix a vulnerability without changing the upstream version number. dyd↻ applies a vendor rule only where it has verified one (Debian 12 and 13, Ubuntu 26.10 to 14.04), using that vendor's package version. For hosting providers, cPanel/EasyApache and CloudLinux, no official advisory for these two CVEs could be found on 2026-10-22, so such environments always get "Needs further verification" with the advice to ask the provider.
 
 ## Comparison methods (never mixed)
 
@@ -65,6 +123,8 @@ Every page below was read on 2026-10-22 using web fetch/search tools only. A blo
 
 **php-src advisories (all upstream, Docker and Plesk rules)**
 - <https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w> and <https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp>: read. Both: critical, CVSS v4 9.2, published 2026-10-21; affected < 8.2.35, < 8.3.36, < 8.4.27, < 8.5.12; patched 8.2.35, 8.3.36, 8.4.27, 8.5.12. Outcome: confirmed. The advisories describe temporary mitigations (memory limit, input limits, `fatal_error_backtraces=0`, `session.upload_progress.enabled=0`, `pm.max_requests=1`); dyd↻ links to them only and states that they do not replace updating.
+- <https://www.php.net/archive/2026.php#2026-10-21-5> (the announcement): read in full on 2026-10-22 from the page itself (not from a summary); see "The PHP announcement" above. It lists no affected versions; every quoted fact was checked against the page text and its links (downloads page, the three backport branches, both advisories).
+- <https://github.com/php/php-src/blob/php-8.6.0RC4/NEWS>: read; lists both CVEs as fixed in 8.6.0RC4 (21 Oct 2026). The `php-8.6.0RC4` tag page itself carries only the tag message. The three backport branch pages returned HTTP 200.
 - <https://www.php.net/supported-versions.php>: read. Lists 8.2 to 8.5 only; security support ends 2026-12-31 (8.2), 2027-12-31 (8.3), 2028-12-31 (8.4), 2029-12-31 (8.5). 8.1 is not listed. Used for `php82_end_of_support` and for treating 8.1 and older as always "verify".
 - <https://github.com/php/php-src/releases/tag/php-8.3.36> and `php-8.2.35`: read; security releases dated 21 October 2026 naming both CVEs. <https://www.php.net/releases/8_5_12.php>: read (security release; the page lists no CVEs). <https://www.php.net/ChangeLog-8.php>: only the first part was read (the 8.5.12 and 8.4.27 entries, dated 22 Oct 2026 on that page, listing both GHSA ids); the 8.3.36 and 8.2.35 entries were not reached in that page, so the GitHub release pages were used for them. Release dates differ by one day between sources (21 vs 22 October); this does not affect any threshold.
 
@@ -102,6 +162,10 @@ PHP 8.1 and older from php.net, pre-releases (8.6), derived or custom Docker ima
 ### How to re-verify
 
 Re-read the sources listed above, compare each threshold with `rules.json`, update `verified_at` and `rules_verified_at` only on the day you actually read them, run `node scripts/build-rules.js` and `npm test`, and add the new log entry here. The page shows a warning when `rules_verified_at` is older than 30 days.
+
+### Re-read on the day of the redesign (2026-10-22)
+
+Both GitHub advisories, the Debian tracker (CVE-2026-109618), the Ubuntu page (CVE-2026-109619) and docker-library `versions.json` were read again: no threshold or version changed, and the advisories show no revision notes. The advisories were also read for the impact statements used in the report (unauthenticated remote code execution as the web worker account for CVE-2026-109618; unauthenticated heap use-after-free, memory disclosure and remote code execution for CVE-2026-109619; both "Critical", CVSS v4 9.2, published 2026-10-21). A search for official cPanel, EasyApache or CloudLinux advisories for these two CVEs found nothing.
 
 ## Test notes
 
