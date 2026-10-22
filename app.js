@@ -1,28 +1,34 @@
-/* dyd UI. Builds the DOM with createElement/textContent only. No storage, no network. */
+/* dyd UI. Builds the DOM with createElement/textContent only. No storage. The only network request is the optional reachability check. */
 (function () {
   "use strict";
 
-  var RULES = window.DYD_RULES, E = window.DYD_ENGINE, I = window.DYD_I18N;
+  var RULES = window.DYD_RULES, E = window.DYD_ENGINE, C = window.DYD_COPY;
   var doc = document;
-  var ready = !!(RULES && E && I && Array.isArray(RULES.rules) && RULES.rules.length);
+  var ready = !!(RULES && E && C && Array.isArray(RULES.rules) && RULES.rules.length);
 
-  var FIELD_STEP = { platform: 1, docker_image: 1, plesk_os: 1, release: 1, version: 2, source: 3, restarted: 3 };
-  var EMPTY = { platform: "", docker_image: "", plesk_os: "", release: "", version: "", source: "", restarted: "" };
-  var input = Object.assign({}, EMPTY);
+  var EMPTY = {
+    domain: "", site_name: "", hosting_type: "", provider: "", panel: "", package_source: "", os_family: "", release: "", plesk_os: "",
+    version: "", version_unknown: "", version_source: "", runtimes: "", exec_model: "", update_applied: "", update_from: "", mitigations_applied: "", restarted: "",
+  };
+  var FIELD_STEP = {
+    domain: 1, site_name: 1, hosting_type: 2, provider: 2, panel: 2, package_source: 3, os_family: 3, release: 3, plesk_os: 3,
+    version: 3, version_unknown: 3, version_source: 3, runtimes: 3, exec_model: 3, update_applied: 4, update_from: 4, mitigations_applied: 4, restarted: 4,
+  };
+  var RADIOS = ["hosting_type", "package_source", "os_family", "plesk_os", "version_source", "runtimes", "exec_model", "update_applied", "mitigations_applied", "restarted"];
+  var PLATFORM_NAMES = { upstream: "php.net", docker: "Docker (official image)", debian: "Debian", ubuntu: "Ubuntu", plesk: "Plesk" };
+  var STATUS_CLASS = { affected: "st-affected", remediated: "st-supported", verify: "st-verify" };
+  var STATUS_KEY = { affected: "status.affected", remediated: "status.supported", verify: "status.verify" };
+  var STATUS_ICON = { affected: "!", remediated: "✓", verify: "?" };
+  var REACH_SECONDS = 8;
+
+  var a = Object.assign({}, EMPTY);
   var step = 1;
-  var showingResult = false;
-  var lang = pickLang();
+  var reach = { state: "idle", host: "", time: "" };
+  var last = null; // the last report: { res, input, when, a }
+  var reachId = 0;
 
   function $(id) { return doc.getElementById(id); }
-  function t(key, params) { return I ? I.t(lang, key, params) : key; }
-  function pickLang() {
-    var q = null;
-    try { q = new URLSearchParams(window.location.search).get("lang"); } catch (e) { q = null; }
-    if (q === "en" || q === "ro") { return q; }
-    var nl = (navigator.language || "").toLowerCase();
-    return nl.indexOf("ro") === 0 ? "ro" : "en";
-  }
-
+  function t(key, params) { return C ? C.t(key, params) : key; }
   function el(tag, opts, children) {
     var n = doc.createElement(tag);
     opts = opts || {};
@@ -37,388 +43,623 @@
     if (typeof url !== "string" || url.indexOf("https://") !== 0) { return el("span", { text: text }); }
     return el("a", { text: text, attrs: { href: url, rel: "noopener noreferrer", target: "_blank" } });
   }
-  // The narrow-screen CSS stacks table cells; explicit roles keep the table semantics for assistive technology.
+  function shortUrl(u) { return u.replace(/^https:\/\//, ""); }
   function keepTableRoles(tbl) {
     tbl.setAttribute("role", "table");
     var map = { THEAD: "rowgroup", TBODY: "rowgroup", TR: "row", TH: "columnheader", TD: "cell" };
     Array.prototype.forEach.call(tbl.querySelectorAll("thead, tbody, tr, th, td"), function (n) { n.setAttribute("role", map[n.tagName]); });
   }
-  function shortUrl(u) { return u.replace(/^https:\/\//, ""); }
-  function distro(p) { return p === "debian" || p === "ubuntu"; }
   function rulesOf(platform) { return RULES.rules.filter(function (r) { return r.platform === platform; }); }
-  function ruleFor(platform, release) {
-    return distro(platform) && release ? E.findRule(RULES, platform, release) : null;
-  }
-  function platformCount() {
-    var s = {}; RULES.rules.forEach(function (r) { s[r.platform] = true; }); return Object.keys(s).length;
-  }
-
-  /* ---------- static strings ---------- */
-  function applyStatic() {
-    if (!I) { return; } // without strings the static English text of index.html stays as it is
-    doc.documentElement.setAttribute("lang", lang);
-    doc.title = t("meta.title");
-    var md = doc.querySelector('meta[name="description"]');
-    if (md) { md.setAttribute("content", t("meta.description")); }
-    Array.prototype.forEach.call(doc.querySelectorAll("[data-i18n]"), function (n) { n.textContent = t(n.getAttribute("data-i18n")); });
-    Array.prototype.forEach.call(doc.querySelectorAll("[data-i18n-aria]"), function (n) { n.setAttribute("aria-label", t(n.getAttribute("data-i18n-aria"))); });
-    ["en", "ro"].forEach(function (l) { $("lang-" + l).setAttribute("aria-pressed", l === lang ? "true" : "false"); });
+  function releaseRule() { return (a.os_family === "debian" || a.os_family === "ubuntu") && a.release ? E.findRule(RULES, a.os_family, a.release) : null; }
+  function stamp(d) { return d.toISOString().slice(0, 16).replace("T", " ") + " UTC"; }
+  function valText(field, v) { var k = "val." + field + "." + v; return C.has(k) ? t(k) : v; }
+  function isOtherPlatform() {
+    var s = a.package_source;
+    return s === "provider" || s === "unknown" || (s === "distro" && a.os_family === "other");
   }
 
-  /* ---------- rules status card ---------- */
-  function renderStatus() {
-    var dl = $("status-list"); clear(dl);
-    function row(k, v) { dl.appendChild(el("dt", { text: k })); dl.appendChild(el("dd", { text: v })); }
-    row(t("status.verified"), RULES.rules_verified_at);
-    row(t("status.review"), t("status.review." + RULES.review_status));
-    row(t("status.scope"), t("status.scope.value", { rules: RULES.rules.length, platforms: platformCount() }));
-    row(t("status.cves"), RULES.cves.map(function (c) { return c.id; }).join(", "));
-    var warn = $("stale-warning");
-    var days = Math.floor((Date.now() - Date.parse(RULES.rules_verified_at + "T00:00:00Z")) / 86400000);
-    if (days > 30) { warn.textContent = t("status.stale", { days: days }); warn.hidden = false; } else { warn.hidden = true; }
-    $("footer-verified").textContent = t("footer.verified", { date: RULES.rules_verified_at });
+  /* ---------- engine input ---------- */
+  function reachValue() { return reach.state === "reached" ? "reached" : reach.state === "inconclusive" ? "inconclusive" : "not_checked"; }
+  // Answers whose question is hidden by an earlier answer are not used and not reported.
+  function visible(src) {
+    var v = Object.assign({}, src);
+    if (v.hosting_type === "docker") { v.panel = ""; }
+    if (v.package_source !== "distro") { v.os_family = ""; v.release = ""; }
+    else if (v.os_family !== "debian" && v.os_family !== "ubuntu") { v.release = ""; }
+    if (v.package_source !== "plesk") { v.plesk_os = ""; }
+    if (v.update_applied !== "confirmed" && v.update_applied !== "assumed") { v.update_from = ""; }
+    if (v.update_applied !== "no" && v.update_applied !== "unknown") { v.mitigations_applied = ""; }
+    if (v.package_source === "provider" || v.package_source === "unknown" || (v.package_source === "distro" && v.os_family === "other")) { v.exec_model = ""; }
+    if (v.version_unknown === "yes") { v.version = ""; v.version_source = ""; }
+    return v;
   }
-
-  /* ---------- environments table + sources ---------- */
-  function renderEnvs() {
-    var tbl = $("envs-table"); clear(tbl);
-    tbl.appendChild(el("caption", { text: t("envs.h") }));
-    var head = el("tr");
-    ["envs.col.platform", "envs.col.branch", "envs.col.package", "envs.col.fixed", "envs.col.verified"].forEach(function (k) { head.appendChild(el("th", { text: t(k), attrs: { scope: "col" } })); });
-    tbl.appendChild(el("thead", {}, [head]));
-    var body = el("tbody");
-    RULES.rules.forEach(function (r) {
-      var fixedVals = {}; Object.keys(r.per_cve).forEach(function (c) { fixedVals[r.per_cve[c].fixed] = true; });
-      var tr = el("tr");
-      var cells = [
-        [t("envs.col.platform"), t("env." + r.platform), ""],
-        [t("envs.col.branch"), r.release_label || ("PHP " + r.series), ""],
-        [t("envs.col.package"), r.package || "php", "mono"],
-        [t("envs.col.fixed"), Object.keys(fixedVals).join(" / "), "mono"],
-        [t("envs.col.verified"), r.verified_at, ""],
-      ];
-      cells.forEach(function (c) { tr.appendChild(el("td", { text: c[1], cls: c[2], attrs: { "data-label": c[0] } })); });
-      body.appendChild(tr);
-    });
-    tbl.appendChild(body);
-    keepTableRoles(tbl);
-  }
-  function renderSources() {
-    var host = $("sources-list"); clear(host);
-    var seen = {};
-    function group(titleKey, urls) {
-      var list = [];
-      urls.forEach(function (u) { if (typeof u === "string" && u.indexOf("https://") === 0 && !seen[u]) { seen[u] = true; list.push(u); } });
-      if (!list.length) { return; }
-      var ul = el("ul");
-      list.forEach(function (u) { ul.appendChild(el("li", {}, [link(u, shortUrl(u))])); });
-      host.appendChild(el("div", {}, [el("h3", { text: t(titleKey) }), ul]));
+  function toEngine(src) {
+    var s = visible(src || a);
+    var i = {
+      domain: s.domain, site_name: s.site_name, hosting_type: s.hosting_type, provider: s.provider, panel: s.panel,
+      version: s.version, version_unknown: s.version_unknown, version_source: s.version_source, runtimes: s.runtimes,
+      exec_model: s.exec_model, mitigations_applied: s.mitigations_applied,
+      update_applied: s.update_applied, update_from: s.update_from, restarted: s.restarted, reachability: reachValue(),
+    };
+    switch (s.package_source) {
+      case "upstream": i.platform = "upstream"; break;
+      case "distro":
+        if (s.os_family === "debian" || s.os_family === "ubuntu") { i.platform = s.os_family; i.release = s.release; }
+        else { i.platform = "other"; i.other_kind = "other"; }
+        break;
+      case "docker_official": i.platform = "docker"; i.docker_image = "official"; break;
+      case "docker_other": i.platform = "docker"; i.docker_image = "other"; break;
+      case "plesk": i.platform = "plesk"; i.plesk_os = s.plesk_os; break;
+      case "provider": i.platform = "other"; i.other_kind = "provider"; break;
+      case "unknown": i.platform = "other"; i.other_kind = "unknown"; break;
+      default: i.platform = "";
     }
-    group("sources.g.advisories", RULES.cves.map(function (c) { return c.advisory; }));
-    ["upstream", "docker", "plesk", "debian", "ubuntu"].forEach(function (p) {
-      var urls = [];
-      rulesOf(p).forEach(function (r) {
-        urls.push(r.source_url);
-        (r.extra_sources || []).forEach(function (u) { urls.push(u); });
-        Object.keys(r.per_cve).forEach(function (c) { urls.push(r.per_cve[c].source_url); });
-      });
-      group("sources.g." + p, urls);
-    });
-    if (RULES.php82_end_of_support) { group("sources.g.other", [RULES.php82_end_of_support.source_url]); }
+    return i;
   }
 
-  /* ---------- form state ---------- */
-  function syncInputFromForm() {
-    ["platform", "docker_image", "plesk_os", "source", "restarted"].forEach(function (name) {
+  /* ---------- reading and writing the form ---------- */
+  function syncFromForm() {
+    ["domain", "site_name", "provider", "version"].forEach(function (id) { a[id] = $(id).value; });
+    ["panel", "release", "update_from"].forEach(function (id) { a[id] = $(id).value; });
+    a.version_unknown = $("version_unknown").checked ? "yes" : "";
+    RADIOS.forEach(function (name) {
       var c = doc.querySelector('input[name="' + name + '"]:checked');
-      input[name] = c ? c.value : "";
+      a[name] = c ? c.value : "";
     });
-    input.release = $("release").value;
-    input.version = $("version").value;
   }
-  function pushInputToForm() {
-    ["platform", "docker_image", "plesk_os", "source", "restarted"].forEach(function (name) {
-      Array.prototype.forEach.call(doc.querySelectorAll('input[name="' + name + '"]'), function (r) { r.checked = r.value === input[name]; });
+  function pushToForm() {
+    ["domain", "site_name", "provider", "version"].forEach(function (id) { $(id).value = a[id]; });
+    ["panel", "update_from"].forEach(function (id) { $(id).value = a[id]; });
+    $("version_unknown").checked = a.version_unknown === "yes";
+    RADIOS.forEach(function (name) {
+      Array.prototype.forEach.call(doc.querySelectorAll('input[name="' + name + '"]'), function (r) { r.checked = r.value === a[name]; });
     });
-    $("release").value = input.release;
-    $("version").value = input.version;
+    renderReleaseOptions(); $("release").value = a.release;
   }
 
   function renderReleaseOptions() {
     var sel = $("release"); clear(sel);
-    sel.appendChild(el("option", { text: t("release.placeholder"), attrs: { value: "" } }));
-    if (distro(input.platform)) {
-      rulesOf(input.platform).slice().sort(function (a, b) { return E.dpkgCompare(b.release, a.release); }).forEach(function (r) {
+    sel.appendChild(el("option", { text: "Choose…", attrs: { value: "" } }));
+    if (a.os_family === "debian" || a.os_family === "ubuntu") {
+      rulesOf(a.os_family).slice().sort(function (x, y) { return E.dpkgCompare(y.release, x.release); }).forEach(function (r) {
         sel.appendChild(el("option", { text: r.release_label, attrs: { value: r.release } }));
       });
-      sel.appendChild(el("option", { text: t("release.other"), attrs: { value: "other" } }));
+      sel.appendChild(el("option", { text: "Another release", attrs: { value: "other" } }));
     }
-    sel.value = input.release;
-  }
-  function updateConditional() {
-    $("fs-docker").hidden = input.platform !== "docker";
-    $("fs-plesk").hidden = input.platform !== "plesk";
-    $("fs-release").hidden = !distro(input.platform);
-  }
-  function renderVersionStep() {
-    var isDistro = distro(input.platform);
-    $("version-label").textContent = t(isDistro ? "version.label.distro" : "version.label.upstream");
-    var rule = ruleFor(input.platform, input.release);
-    var sample = rule ? rule.example : (isDistro && rulesOf(input.platform)[0] ? rulesOf(input.platform)[0].example : "");
-    $("version-hint").textContent = isDistro ? t("version.hint.distro", { example: sample }) : t("version.hint.upstream");
-    var p = input.platform;
-    var introKey = "find." + p + ".intro";
-    var pkg = rule ? rule.package : "php8.X";
-    $("find-intro").textContent = t(introKey);
-    var cmdKey = isDistro ? "find.distro.cmd" : "find." + p + ".cmd";
-    var noteKey = isDistro ? "find.distro.note" : "find." + p + ".note";
-    $("find-cmd").textContent = t(cmdKey, { pkg: pkg, php: pkg });
-    $("find-note").textContent = t(noteKey, { pkg: pkg, php: pkg });
-    $("copy-hint").hidden = true;
+    sel.value = a.release;
   }
 
-  function summaryValue(name, v) {
-    if (name === "platform") { return t("env." + v); }
-    if (name === "docker_image") { return t("docker." + v); }
-    if (name === "plesk_os") { return t("plesk." + v); }
-    if (name === "release") {
-      if (v === "other") { return t("release.other"); }
-      var r = ruleFor(input.platform, v); return r ? r.release_label : v;
-    }
-    if (name === "source") { return t("sum.source." + v); }
-    if (name === "restarted") { return t("restart." + v); }
-    return v;
+  function allowedSources() {
+    var h = a.hosting_type, plesk = a.panel === "plesk";
+    if (h === "docker") { return ["docker_official", "docker_other", "unknown"]; }
+    if (h === "shared" || h === "managed") { return plesk ? ["provider", "plesk", "unknown"] : ["provider", "unknown"]; }
+    var list = ["upstream", "distro", "docker_official", "docker_other", "provider", "unknown"];
+    if (plesk) { list.splice(2, 0, "plesk"); }
+    return list;
   }
+
+  function refresh() {
+    // hosting step
+    $("field-panel").hidden = a.hosting_type === "docker";
+    var noteKey = { shared: "hosting.shared", managed: "hosting.managed", vps: "hosting.vps", dedicated: "hosting.vps", cloud: "hosting.vps", docker: "hosting.docker", unknown: "hosting.unknown", other: "hosting.unknown" }[a.hosting_type];
+    var note = $("hosting-note");
+    if (noteKey) { note.textContent = t(noteKey); note.hidden = false; } else { note.hidden = true; }
+    // PHP step: only show the options that make sense for the hosting answers
+    var allowed = allowedSources();
+    Array.prototype.forEach.call(doc.querySelectorAll("[data-ps]"), function (chip) { chip.hidden = allowed.indexOf(chip.getAttribute("data-ps")) === -1; });
+    if (a.package_source && allowed.indexOf(a.package_source) === -1) {
+      a.package_source = "";
+      Array.prototype.forEach.call(doc.querySelectorAll('input[name="package_source"]'), function (r) { r.checked = false; });
+    }
+    var distro = a.package_source === "distro";
+    $("fs-os_family").hidden = !distro;
+    $("field-release").hidden = !(distro && (a.os_family === "debian" || a.os_family === "ubuntu"));
+    $("fs-plesk_os").hidden = a.package_source !== "plesk";
+    var other = isOtherPlatform();
+    $("version-label").textContent = distro && !other ? t("version.label.distro") : t("version.label.upstream");
+    var sample = "";
+    if (distro && !other) { var r = releaseRule() || rulesOf(a.os_family)[0]; sample = r ? r.example : ""; }
+    $("version-hint").textContent = other ? t("version.hint.other") : distro ? t("version.hint.distro", { example: sample }) : t("version.hint.upstream");
+    $("version").disabled = a.version_unknown === "yes";
+    renderHelp();
+    // update step
+    $("field-update_from").hidden = !(a.update_applied === "confirmed" || a.update_applied === "assumed");
+    $("fs-mitigations_applied").hidden = !(a.update_applied === "no" || a.update_applied === "unknown");
+    $("fs-exec_model").hidden = isOtherPlatform();
+    var eh = $("exec-help");
+    if (a.exec_model === "unknown" && !isOtherPlatform()) { eh.textContent = t("exec.hint.unknown"); eh.hidden = false; } else { eh.hidden = true; }
+    renderStepper();
+    renderSummary();
+  }
+
+  function renderHelp() {
+    var box = $("version-help");
+    if (a.version_unknown !== "yes") { box.hidden = true; return; }
+    box.hidden = false;
+    var list = $("help-list"); clear(list);
+    var panelKey = a.panel === "cpanel" ? "help.panel.cpanel" : a.panel === "plesk" ? "help.panel.plesk" : "help.panel.other";
+    [panelKey, "help.provider", "help.phpinfo", "help.cli_warning"].forEach(function (k) { list.appendChild(el("li", { text: t(k) })); });
+    var kind = a.package_source === "distro" ? "distro" : a.package_source === "plesk" ? "plesk" : (a.package_source === "docker_official" || a.package_source === "docker_other") ? "docker" : a.package_source === "upstream" ? "upstream" : "";
+    var row = $("help-cmd-row");
+    if (!kind || (kind === "distro" && isOtherPlatform())) { row.hidden = true; return; }
+    var rule = releaseRule();
+    var pkg = rule ? rule.package : "php8.X";
+    $("help-cmd").textContent = t("help.cmd." + kind, { pkg: pkg });
+    list.appendChild(el("li", { text: t("help.cmd.note." + kind, { pkg: pkg }) }));
+    list.appendChild(el("li", { text: t("help.cmd.after") }));
+    row.hidden = false;
+  }
+
+  /* ---------- summary of answers ---------- */
   function renderSummary() {
     var host = $("summary"); clear(host);
-    var dl = el("dl", { cls: "kv" });
-    var shown = 0;
-    ["platform", "docker_image", "plesk_os", "release", "version", "source", "restarted"].forEach(function (name) {
-      var v = name === "version" ? input.version.trim() : input[name];
-      if (!v) { return; }
+    var dl = el("dl", { cls: "kv" }), shown = 0, vis = visible(a);
+    ["domain", "site_name", "hosting_type", "provider", "panel", "package_source", "os_family", "release", "plesk_os", "version", "version_source", "runtimes", "exec_model", "update_applied", "update_from", "mitigations_applied", "restarted"].forEach(function (f) {
+      var v = vis[f];
+      if (f === "version" && a.version_unknown === "yes") { v = "unknown"; }
+      if (!v || String(v).trim() === "") { return; }
       shown++;
-      dl.appendChild(el("dt", { text: t("sum." + name) }));
-      dl.appendChild(el("dd", { text: summaryValue(name, v), cls: name === "version" ? "mono" : "" }));
+      var shownValue = String(v).trim();
+      if (f === "domain") { var nd = E.normalizeDomain(v); if (nd.ok) { shownValue = nd.host; } }
+      if (f === "release") { var r = releaseRule(); shownValue = r ? r.release_label : (v === "other" ? "Another release" : v); }
+      else if (["hosting_type", "panel", "package_source", "os_family", "plesk_os", "version_source", "runtimes", "exec_model", "update_applied", "update_from", "mitigations_applied", "restarted"].indexOf(f) !== -1) { shownValue = valText(f, v); }
+      dl.appendChild(el("dt", { text: t("sum." + f) }));
+      dl.appendChild(el("dd", { text: shownValue, cls: f === "version" || f === "domain" ? "mono" : "" }));
     });
-    if (shown) { host.appendChild(dl); } else { host.appendChild(el("p", { text: t("summary.empty"), cls: "muted" })); }
+    host.appendChild(shown ? dl : el("p", { cls: "muted", text: t("summary.empty") }));
   }
 
-  function totalSteps() { return input.platform === "other" ? 1 : 3; }
-  function stepName(n) { return t(["", "step.env", "step.version", "step.confirm", "step.result"][n]); }
+  /* ---------- stepper and navigation ---------- */
   function renderStepper() {
     Array.prototype.forEach.call($("stepper").children, function (li) {
       var n = Number(li.getAttribute("data-step"));
-      var cur = showingResult ? 4 : step;
       li.removeAttribute("aria-current");
-      li.className = n < cur ? "done" : "";
-      if (n === cur) { li.setAttribute("aria-current", "step"); }
+      li.className = n < step ? "done" : "";
+      if (n === step) { li.setAttribute("aria-current", "step"); }
     });
-    $("step-status").textContent = showingResult ? t("step.result") : t("step.of", { n: step, total: totalSteps(), name: stepName(step) });
+    var status = t("step.of", { n: step, total: 4, name: t("step." + step) });
+    if ($("step-status").textContent !== status) { $("step-status").textContent = status; }
+    $("btn-back").hidden = step === 1;
+    $("btn-next").textContent = t(step === 4 ? "btn.generate" : "btn.continue");
   }
   function showStep(n, focus) {
-    step = n; showingResult = false;
-    $("form").hidden = false; $("result").hidden = true;
-    [1, 2, 3].forEach(function (i) { $("step-" + i).hidden = i !== n; });
-    $("btn-back").hidden = n === 1;
-    var last = n === totalSteps();
-    $("btn-next").textContent = t(last ? "btn.assess" : "btn.next");
-    if (n === 2) { renderVersionStep(); }
-    renderStepper();
+    step = n;
+    [1, 2, 3, 4].forEach(function (i) { $("step-" + i).hidden = i !== n; });
+    refresh();
     if (focus) {
-      var target = n === 2 ? $("version") : $("step-" + n).querySelector("legend");
-      if (target) { if (n !== 2) { target.setAttribute("tabindex", "-1"); } target.focus(); }
+      var target = n === 1 ? $("domain") : $("step-" + n).querySelector("legend");
+      if (target) { if (n !== 1) { target.setAttribute("tabindex", "-1"); } target.focus(); }
     }
   }
+  function setView(v) {
+    doc.body.setAttribute("data-view", v);
+    $("report-view").hidden = v !== "report";
+  }
 
-  /* ---------- errors ---------- */
+  /* ---------- validation ---------- */
   function clearErrors() {
-    lastErrors = [];
     Array.prototype.forEach.call(doc.querySelectorAll(".field-error"), function (p) { p.textContent = ""; });
     Array.prototype.forEach.call(doc.querySelectorAll("[aria-invalid]"), function (n) { n.removeAttribute("aria-invalid"); });
   }
   function errText(e) {
     var k = "err." + e.field + "." + e.reason;
-    return I.has(lang, k) ? t(k) : t("err." + e.reason);
+    return C.has(k) ? t(k) : t("err." + e.reason);
   }
-  var lastErrors = [];
   function showErrors(errs) {
     clearErrors();
-    lastErrors = errs;
     errs.forEach(function (e) {
       var p = $("err-" + e.field); if (p) { p.textContent = errText(e); }
-      var ctls = e.field === "version" ? [$("version")] : e.field === "release" ? [$("release")] : Array.prototype.slice.call(doc.querySelectorAll('input[name="' + e.field + '"]'));
-      ctls.forEach(function (c) { c.setAttribute("aria-invalid", "true"); c.setAttribute("aria-describedby", "err-" + e.field); });
+      var ctls = ["domain", "site_name", "provider", "version", "release"].indexOf(e.field) !== -1 ? [$(e.field)] : Array.prototype.slice.call(doc.querySelectorAll('input[name="' + e.field + '"]'));
+      ctls.forEach(function (c) { c.setAttribute("aria-invalid", "true"); });
     });
     if (errs.length) {
       var f = errs[0].field;
-      var focusEl = f === "version" ? $("version") : f === "release" ? $("release") : doc.querySelector('input[name="' + f + '"]');
-      if (focusEl) { focusEl.focus(); }
+      var target = ["domain", "site_name", "provider", "version", "release"].indexOf(f) !== -1 ? $(f) : doc.querySelector('input[name="' + f + '"]');
+      if (target) { target.focus(); }
     }
   }
   function stepErrors(n) {
-    return E.validate(input).filter(function (e) { return FIELD_STEP[e.field] === n; });
+    var errs = [], other = isOtherPlatform();
+    function add(field, reason) { errs.push({ field: field, reason: reason }); }
+    if (n === 1) {
+      var d = E.normalizeDomain(a.domain);
+      if (!d.ok) { add("domain", d.reason); }
+    }
+    if (n === 2 && !a.hosting_type) { add("hosting_type", "required"); }
+    if (n === 3) {
+      if (!a.package_source) { add("package_source", "required"); }
+      else if (a.package_source === "distro" && !a.os_family) { add("os_family", "required"); }
+      else if (a.package_source === "distro" && a.os_family !== "other" && !a.release) { add("release", "required"); }
+      else if (a.package_source === "plesk" && !a.plesk_os) { add("plesk_os", "required"); }
+    }
+    if (n === 4 && !other && !a.update_applied) { add("update_applied", "required"); }
+    if (!errs.length) {
+      E.validate(toEngine()).forEach(function (e) {
+        if (FIELD_STEP[e.field] === n && e.field !== "platform") { errs.push(e); }
+      });
+    }
+    return errs;
+  }
+  function next() {
+    syncFromForm();
+    var errs = stepErrors(step);
+    if (errs.length) { showErrors(errs); return; }
+    clearErrors();
+    if (step < 4) { showStep(step + 1, true); } else { renderReport(); }
+  }
+  function back() { clearErrors(); if (step > 1) { showStep(step - 1, true); } }
+
+  /* ---------- optional reachability check: the only request the page makes ---------- */
+  function renderReach() {
+    var s = $("reach-status"), btn = $("reach-btn");
+    s.className = "reach-status";
+    btn.disabled = reach.state === "checking";
+    if (reach.state === "checking") { s.textContent = t("reach.checking", { seconds: REACH_SECONDS }); }
+    else if (reach.state === "reached") { s.textContent = t("reach.reached", { host: reach.host, time: reach.time }); s.className += " is-reached"; }
+    else if (reach.state === "inconclusive") { s.textContent = t("reach.inconclusive"); s.className += " is-inconclusive"; }
+    else if (reach.state === "invalid") { s.textContent = t("reach.needs_domain"); }
+    else { s.textContent = ""; }
+  }
+  function checkReach() {
+    syncFromForm();
+    var n = E.normalizeDomain(a.domain);
+    if (!n.ok) { reach = { state: "invalid", host: "", time: "" }; renderReach(); showErrors([{ field: "domain", reason: n.reason }]); return; }
+    clearErrors();
+    var host = n.host, myId = ++reachId;
+    reach = { state: "checking", host: host, time: "" };
+    renderReach();
+    var ctrl = new AbortController();
+    var timer = window.setTimeout(function () { ctrl.abort(); }, REACH_SECONDS * 1000);
+    var done = function (state) {
+      window.clearTimeout(timer);
+      if (myId !== reachId || reach.host !== host || reach.state !== "checking") { return; } // the domain changed meanwhile
+      reach = { state: state, host: host, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
+      renderReach();
+    };
+    // no-cors: the answer is opaque. It can only show that some HTTP response arrived (browsers require redirect "follow"
+    // in this mode, so the answer may come after a redirect). Nothing else is read.
+    fetch("https://" + host + "/", { method: "GET", mode: "no-cors", cache: "no-store", credentials: "omit", redirect: "follow", referrerPolicy: "no-referrer", signal: ctrl.signal })
+      .then(function () { ctrl.abort(); done("reached"); }, function () { done("inconclusive"); });
   }
 
-  /* ---------- result ---------- */
-  function section(titleKey, content) {
-    return el("section", { cls: "result-section" }, [el("h4", { text: t(titleKey) })].concat(content));
+  /* ---------- report ---------- */
+  function evidenceText(it, input, md) {
+    switch (it.id) {
+      case "domain": return t("ev.domain") + ": " + it.value;
+      case "reachability": return it.provenance === "verified" ? t("ev.reachability.reached") : t("ev.reachability.unknown");
+      case "hosting_type": return t("ev.hosting_type") + ": " + valText("hosting_type", it.value);
+      case "provider": return t("ev.provider") + ": " + (md ? code(it.value) : it.value);
+      case "panel": return t("ev.panel") + ": " + valText("panel", it.value);
+      case "package_source": return t("ev.package_source") + ": " + valText("package_source", (last && last.a.package_source) || "unknown");
+      case "version": return t("ev.version") + ": " + (it.provenance === "unknown" ? "unknown" : (md ? code(it.value) : it.value));
+      case "version_source": return t("ev.version_source") + ": " + valText("version_source", it.value);
+      case "runtime_serving": return t("ev.runtime_serving." + (it.provenance === "declared" ? "declared" : "unknown"));
+      case "exec_model": return t("ev.exec_model") + ": " + valText("exec_model", it.value);
+      case "mitigations": return t("ev.mitigations") + ": " + valText("mitigations_applied", it.value);
+      case "runtimes": return t("ev.runtimes") + ": " + valText("runtimes", it.value);
+      case "update": return t("ev.update") + ": " + valText("update_applied", it.value);
+      case "restart": return t("ev.restart") + ": " + valText("restarted", it.value);
+      case "rule": return t("ev.rule", { rule: it.value, date: it.date });
+      case "comparison": return t("ev.comparison." + it.value, { cve: it.cve });
+      default: return it.id;
+    }
   }
-  function listOf(items, ordered) { var l = el(ordered ? "ol" : "ul"); items.forEach(function (x) { l.appendChild(el("li", { text: x })); }); return l; }
+  function groupOf(it) {
+    if (it.provenance === "unknown" || it.basis === "assumed") { return "unknown"; }
+    return it.provenance;
+  }
+  function cveCard(c, res, input) {
+    var cls = STATUS_CLASS[c.status];
+    var card = el("article", { cls: "cve-card " + cls });
+    card.appendChild(el("header", {}, [
+      el("h4", { text: c.id }),
+      el("span", { cls: "badge" }, [el("span", { cls: "icon", text: STATUS_ICON[c.status], attrs: { "aria-hidden": "true" } }), el("span", { text: t(STATUS_KEY[c.status]) })]),
+    ]));
+    card.appendChild(el("p", { cls: "title", text: c.title }));
+    var lines = el("ul", { cls: "lines" });
+    if (c.state) { lines.appendChild(el("li", { text: t(c.state === "affected" ? "line.compare_affected" : "line.compare_fixed", { version: res.version, fixed: c.fixed, series: res.series }) })); }
+    else { lines.appendChild(el("li", { text: t("line.no_comparison") })); }
+    if (input.version_source && input.version_unknown !== "yes") { lines.appendChild(el("li", { text: t("line.source", { source: valText("version_source", input.version_source).toLowerCase() }) })); }
+    if (input.update_applied) { lines.appendChild(el("li", { text: t("line.update", { basis: valText("update_applied", input.update_applied).toLowerCase() }) })); }
+    if (input.restarted) { lines.appendChild(el("li", { text: t("line.restart", { basis: valText("restarted", input.restarted).toLowerCase() }) })); }
+    card.appendChild(lines);
+    var links = el("p", { cls: "card-links" }, [link(c.advisory, t("card.advisory"))]);
+    if (c.source_url && c.source_url !== c.advisory) { links.appendChild(link(c.source_url, "Vendor source")); }
+    card.appendChild(links);
+    var why = el("details", {}, [el("summary", { text: t("card.why") }), el("p", { text: t("why." + c.code) })]);
+    var rule = res.rule ? RULES.rules.filter(function (r) { return r.id === res.rule; })[0] : null;
+    if (rule && rule.note) { why.appendChild(el("p", { text: t("note." + rule.note) })); }
+    if (rule && rule.series === "8.2" && RULES.php82_end_of_support) { why.appendChild(el("p", { text: t("note.php82_eol", { date: RULES.php82_end_of_support.date }) })); }
+    if (rule && rule.platform === "plesk") { why.appendChild(el("p", { text: t("note.plesk_match") })); }
+    if (c.status === "verify") { why.appendChild(el("p", { text: t("note.provider_backports") })); }
+    card.appendChild(why);
+    return card;
+  }
+  function section(title, node) {
+    return [el("h3", { cls: "section-title", text: title }), node];
+  }
 
-  function renderResult(noFocus) {
+  function noteNode(id, res) {
+    var ann = RULES.announcement, pn = RULES.prerelease_notes && RULES.prerelease_notes["8.6"];
+    var p = el("p", { cls: "callout" }, [doc.createTextNode(t("note." + id) + " ")]);
+    if (id === "backport_branch") {
+      p.appendChild(link(ann.url, t("link.announcement")));
+      var m = /^(\d+\.\d+)/.exec(String(res.version || ""));
+      (ann.backport_branches || []).forEach(function (b) { if (m && b.series === m[1]) { p.appendChild(doc.createTextNode(" · ")); p.appendChild(link(b.url, t("link.branch", { series: b.series }))); } });
+    } else if (id === "highest_risk_mod_php") { p.appendChild(link(ann.url, t("link.announcement"))); }
+    else if (id.indexOf("prerelease_") === 0 && pn) { p.appendChild(link(pn.source_url, "php-src NEWS (8.6.0 RC4)")); }
+    return p;
+  }
+  function mitigationsBlock(res) {
+    var ann = RULES.announcement, box = el("div");
+    box.appendChild(el("p", { text: t("mit.intro") }));
+    var ul = el("ul");
+    (RULES.mitigations || []).forEach(function (m) {
+      ul.appendChild(el("li", {}, [el("span", { text: m.summary }), el("br"), el("span", { cls: "muted", text: t("mit.limit") + ": " + m.limitation }), el("br"), el("span", { cls: "muted", text: t("mit.applies", { cves: m.cves.join(", ") }) })]));
+    });
+    box.appendChild(ul);
+    box.appendChild(el("p", { text: t("mit.restart_note") + " " }, [link(ann.url, t("link.announcement"))]));
+    return box;
+  }
+  function restartText(id, input) {
+    if (id === "restart_runtime" && input.exec_model && C.has("act.restart_runtime.d." + input.exec_model)) { return t("act.restart_runtime.d." + input.exec_model); }
+    return t("act." + id + ".d");
+  }
+
+  function renderReport() {
+    var input = toEngine();
     var res = E.evaluate(input, RULES);
     if (res.status === "invalid") {
-      step = FIELD_STEP[res.field] || 1; showStep(step, false); showErrors(res.errors || [{ field: res.field, reason: res.code }]); return;
+      var fs = FIELD_STEP[res.field] || 1;
+      setView("form"); showStep(fs, false); showErrors(res.errors || [{ field: res.field, reason: res.code }]);
+      return;
     }
-    showingResult = true;
-    clearErrors();
-    $("form").hidden = true; $("result").hidden = false;
-    var h = $("result-heading"); clear(h);
-    var icon = { affected: "!", remediated: "✓", verify: "?" }[res.status];
-    h.appendChild(el("span", { cls: "eyebrow", text: t("result.h") + ":" }));
-    h.appendChild(el("span", { cls: "verdict verdict-" + res.status }, [el("span", { cls: "icon", text: icon, attrs: { "aria-hidden": "true" } }), el("span", { text: t("verdict." + res.status) })]));
-    var body = $("result-body"); clear(body);
+    last = { res: res, input: input, when: new Date(), a: visible(a) };
+    var cls = STATUS_CLASS[res.status];
+    var host = $("report"); clear(host);
+    var snap = last.a;
+    var d = E.normalizeDomain(snap.domain);
 
-    if (res.per_cve.length) {
-      var tbl = el("table", { cls: "data-table" });
-      tbl.appendChild(el("caption", { text: t("result.table.h") }));
-      var hr = el("tr");
-      ["col.cve", "col.declared", "col.fixed", "col.state", "col.source"].forEach(function (k) { hr.appendChild(el("th", { text: t(k), attrs: { scope: "col" } })); });
-      tbl.appendChild(el("thead", {}, [hr]));
-      var tb = el("tbody");
-      res.per_cve.forEach(function (c) {
-        var tr = el("tr");
-        var stateCell = el("td", { attrs: { "data-label": t("col.state") } }, [el("span", { cls: "state state-" + c.state }, [el("span", { text: c.state === "fixed" ? "✓" : "!", attrs: { "aria-hidden": "true" } }), el("span", { text: t("state." + c.state) })])]);
-        var srcCell = el("td", { attrs: { "data-label": t("col.source") } }, [link(c.advisory, t("link.advisory")), doc.createTextNode(" · "), link(c.source_url, t("link.source"))]);
-        tr.appendChild(el("td", { text: c.id, attrs: { "data-label": t("col.cve") } }));
-        tr.appendChild(el("td", { text: res.version, cls: "mono", attrs: { "data-label": t("col.declared") } }));
-        tr.appendChild(el("td", { text: c.fixed, cls: "mono", attrs: { "data-label": t("col.fixed") } }));
-        tr.appendChild(stateCell); tr.appendChild(srcCell);
-        tb.appendChild(tr);
-      });
-      tbl.appendChild(tb);
-      keepTableRoles(tbl);
-      body.appendChild(tbl);
+    // header
+    var meta = el("p", { cls: "report-meta" }, [el("span", { text: t("rep.title").toUpperCase() }), el("br"), el("strong", { text: (d.ok ? d.host : "") + (snap.site_name.trim() ? " · " + snap.site_name.trim() : "") }), el("br"), el("span", { text: t("rep.assessed", { when: stamp(last.when) }) })]);
+    var actions = el("div", { cls: "report-actions" }, [
+      el("button", { cls: "btn", text: t("btn.edit"), attrs: { type: "button", id: "btn-edit" } }),
+      el("button", { cls: "btn", text: t("btn.print"), attrs: { type: "button", id: "btn-print" } }),
+      el("button", { cls: "btn", text: t("btn.download"), attrs: { type: "button", id: "btn-download" } }),
+      el("button", { cls: "btn btn-primary", text: t("btn.new"), attrs: { type: "button", id: "btn-new" } }),
+    ]);
+    host.appendChild(el("div", { cls: "report-head" }, [meta, actions]));
+
+    // headline
+    var allAffected = res.per_cve.length > 0 && res.per_cve.every(function (c) { return c.status === "affected"; });
+    var headKey = res.status === "affected" ? (allAffected ? "headline.affected" : "headline.affected_partial") : res.status === "remediated" ? "headline.supported" : "headline.verify";
+    var subKey = res.status === "affected" ? "headline.sub.affected" : res.status === "remediated" ? "headline.sub.supported" : "headline.sub.verify";
+    host.appendChild(el("section", { cls: "verdict " + cls }, [
+      el("span", { cls: "icon", text: STATUS_ICON[res.status], attrs: { "aria-hidden": "true" } }),
+      el("div", {}, [
+        el("h2", { text: t(headKey), attrs: { id: "report-heading", tabindex: "-1" } }),
+        el("p", { text: t(subKey) }),
+        el("p", { cls: "scope", text: t("scope.note") }),
+      ]),
+    ]));
+    if (res.plan.length) {
+      host.appendChild(el("div", { cls: "first " + cls }, [el("h3", { text: t("rep.first") + ": " + t("act." + res.plan[0] + ".t") }), el("p", { text: restartText(res.plan[0], input) })]));
     }
+    if (res.notes.length) { var nb = el("div", { cls: "notes" }); res.notes.forEach(function (id) { nb.appendChild(noteNode(id, res)); }); host.appendChild(nb); }
 
+    // each CVE
+    var grid = el("div", { cls: "cve-grid" });
+    res.per_cve.forEach(function (c) { grid.appendChild(cveCard(c, res, input)); });
+    section(t("rep.cves"), grid).forEach(function (n) { host.appendChild(n); });
+
+    // evidence summary
+    var groups = { verified: [], declared: [], inferred: [], unknown: [] };
+    res.evidence.forEach(function (it) { groups[groupOf(it)].push(evidenceText(it, input)); });
+    var eg = el("div", { cls: "evidence-grid" });
+    ["verified", "declared", "inferred", "unknown"].forEach(function (g) {
+      var box = el("div", { cls: "ev-group" }, [el("h4", { text: t("evg." + g) }), el("p", { cls: "sub", text: t("evg." + g + ".d") })]);
+      if (groups[g].length) { var ul = el("ul"); groups[g].forEach(function (x) { ul.appendChild(el("li", { text: x })); }); box.appendChild(ul); }
+      else { box.appendChild(el("p", { cls: "none", text: t("evg.none") })); }
+      eg.appendChild(box);
+    });
+    section(t("rep.evidence"), eg).forEach(function (n) { host.appendChild(n); });
+
+    // action plan
+    var ol = el("ol", { cls: "plan" });
+    res.plan.forEach(function (id) { ol.appendChild(el("li", {}, [el("div", {}, [el("b", { text: t("act." + id + ".t") }), el("span", { text: restartText(id, input) })])])); });
+    section(t("rep.plan"), ol).forEach(function (n) { host.appendChild(n); });
+
+    // risk explanation
+    var risk = el("div");
+    RULES.cves.forEach(function (c) {
+      var ul = el("ul");
+      ul.appendChild(el("li", { text: t("risk.severity", { severity: c.severity, cvss: c.cvss, published: c.published }) }));
+      ul.appendChild(el("li", { text: t("risk.impact") + ": " + c.impact }));
+      ul.appendChild(el("li", { text: t("risk.mechanism") + ": " + c.mechanism }));
+      ul.appendChild(el("li", { text: t("risk.mitigation") + ": " + c.mitigation }));
+      risk.appendChild(el("h4", { text: c.id + " · " + c.title }));
+      risk.appendChild(ul);
+      risk.appendChild(el("p", {}, [link(c.advisory, t("card.advisory"))]));
+    });
+    risk.appendChild(el("p", { text: t("risk.announcement") + " " }, [link(RULES.announcement.url, t("link.announcement"))]));
+    risk.appendChild(el("p", { cls: "muted", text: t("risk.announcement_note") }));
+    risk.appendChild(el("p", { cls: "muted", text: t("risk.note") }));
+    host.appendChild(el("details", { cls: "block" }, [el("summary", { text: t("rep.risk") }), risk]));
+    if (res.status !== "remediated") { host.appendChild(el("details", { cls: "block", attrs: { id: "mitigations" } }, [el("summary", { text: t("mit.title") }), mitigationsBlock(res)])); }
+
+    // provenance and sources
+    var prov = el("div");
+    var srcList = el("ul");
+    var seen = {};
     var rule = res.rule ? RULES.rules.filter(function (r) { return r.id === res.rule; })[0] : null;
-    var why = [el("p", { text: t("why." + res.code) })];
-    if (rule && rule.note) { why.push(el("p", { cls: "muted", text: t("note." + rule.note) })); }
-    if (rule && rule.series === "8.2" && RULES.php82_end_of_support) { why.push(el("p", { cls: "muted", text: t("note.php82_eol", { date: RULES.php82_end_of_support.date }) })); }
-    if (rule && rule.platform === "plesk") { why.push(el("p", { cls: "muted", text: t("note.plesk_match") })); }
-    if (res.status !== "remediated") { why.push(el("p", { cls: "muted", text: t("note.mitigations") })); }
-    body.appendChild(section("result.why.h", why));
+    var urls = rule ? [rule.source_url].concat(rule.extra_sources || []) : [];
+    RULES.cves.forEach(function (c) { urls.push(c.advisory); });
+    urls.forEach(function (u) { if (u.indexOf("https://") === 0 && !seen[u]) { seen[u] = true; srcList.appendChild(el("li", {}, [link(u, shortUrl(u))])); } });
+    prov.appendChild(el("h4", { text: t("rep.sources") })); prov.appendChild(srcList);
+    host.appendChild(el("details", { cls: "block" }, [el("summary", { text: t("rep.provenance") }), prov]));
+    host.appendChild(el("p", { cls: "prov", text: t("prov.line", { when: stamp(last.when), date: RULES.rules_verified_at }) }));
 
-    var steps = [];
-    for (var i = 1; I.has(lang, "next." + res.code + "." + i); i++) { steps.push(t("next." + res.code + "." + i)); }
-    body.appendChild(section("result.next.h", [listOf(steps, true)]));
+    setView("report");
+    $("btn-edit").addEventListener("click", function () { setView("form"); showStep(1, true); });
+    $("btn-print").addEventListener("click", function () { openDetails(); window.print(); });
+    $("btn-download").addEventListener("click", downloadReport);
+    $("btn-new").addEventListener("click", reset);
+    $("report-heading").focus();
+  }
 
-    var basis = el("dl", { cls: "kv" });
-    function brow(k, node) { basis.appendChild(el("dt", { text: t(k) })); basis.appendChild(el("dd", {}, [node])); }
-    if (rule) {
-      brow("basis.rule", el("span", { text: rule.id, cls: "mono" }));
-      brow("basis.verified", doc.createTextNode(rule.verified_at));
-      brow("basis.review", doc.createTextNode(t("status.review." + RULES.review_status)));
-      brow("basis.source", link(rule.source_url, shortUrl(rule.source_url)));
-      body.appendChild(section("result.basis.h", [basis]));
-    } else {
-      body.appendChild(section("result.basis.h", [el("p", { text: t("basis.none") }), (function () { basis.appendChild(el("dt", { text: t("basis.verified") })); basis.appendChild(el("dd", { text: RULES.rules_verified_at })); basis.appendChild(el("dt", { text: t("basis.review") })); basis.appendChild(el("dd", { text: t("status.review." + RULES.review_status) })); return basis; })()]));
+  // User text goes into the Markdown file inside a code span, so it cannot become a link, HTML or a heading.
+  function code(x) { return "`" + String(x).replace(/`/g, "'").replace(/[\r\n\u0085\u2028\u2029]/g, " ").trim() + "`"; }
+  function openDetails() { Array.prototype.forEach.call(doc.querySelectorAll("#report details"), function (d) { d.open = true; }); }
+  window.addEventListener("beforeprint", function () { if (last) { openDetails(); } });
+  function reportMarkdown() {
+    var snap = last.a;
+    var r = last.res, input = last.input, d = E.normalizeDomain(snap.domain);
+    var out = [];
+    out.push("# dyd↻ assessment report", "");
+    out.push("- Domain: " + (d.ok ? d.host : "") + (snap.site_name.trim() ? " (" + code(snap.site_name) + ")" : ""));
+    out.push("- Assessed: " + stamp(last.when) + " (in the browser, nothing uploaded)");
+    out.push("- Rules re-read: " + RULES.rules_verified_at + "; independent human review pending", "");
+    out.push("## Overall: " + t(STATUS_KEY[r.status]), "");
+    out.push(t("scope.note"), "");
+    out.push("## Each vulnerability", "");
+    r.per_cve.forEach(function (c) { out.push("- " + c.id + " (" + c.title + "): " + t(STATUS_KEY[c.status]) + (c.fixed ? "; fixed in " + c.fixed : "") + ". " + t("why." + c.code) + " Advisory: " + c.advisory); });
+    out.push("", "## Evidence", "");
+    ["verified", "declared", "inferred", "unknown"].forEach(function (g) {
+      var items = r.evidence.filter(function (it) { return groupOf(it) === g; });
+      out.push("### " + t("evg." + g), "");
+      if (!items.length) { out.push("- " + t("evg.none")); }
+      items.forEach(function (it) { out.push("- " + evidenceText(it, input, true)); });
+      out.push("");
+    });
+    if (r.notes.length) { out.push("## Notes", ""); r.notes.forEach(function (id) { out.push("- " + t("note." + id)); }); out.push("", "PHP announcement: " + RULES.announcement.url, ""); }
+    out.push("## Action plan", "");
+    r.plan.forEach(function (id, i) { out.push((i + 1) + ". **" + t("act." + id + ".t") + "**: " + restartText(id, input)); });
+    if (r.status !== "remediated") {
+      out.push("", "## " + t("mit.title"), "", t("mit.intro"), "");
+      (RULES.mitigations || []).forEach(function (m) { out.push("- " + m.summary + " " + t("mit.limit") + ": " + m.limitation); });
+      out.push("", t("mit.restart_note") + " " + RULES.announcement.url);
     }
-    body.appendChild(el("p", { cls: "limits", text: t("result.limits") }));
-    renderStepper();
-    if (!noFocus) { h.focus(); }
+    out.push("", "---", t("prov.line", { when: stamp(last.when), date: RULES.rules_verified_at }), "");
+    return out.join("\n");
+  }
+  function downloadReport() {
+    var d = E.normalizeDomain(last.a.domain);
+    var name = "dyd-report-" + (d.ok ? d.host : "site") + "-" + last.when.toISOString().slice(0, 10) + ".md";
+    var url = URL.createObjectURL(new Blob([reportMarkdown()], { type: "text/markdown" }));
+    var anchor = el("a", { attrs: { href: url, download: name } });
+    doc.body.appendChild(anchor); anchor.click();
+    window.setTimeout(function () { URL.revokeObjectURL(url); doc.body.removeChild(anchor); }, 1000);
+  }
+
+  function reset() {
+    a = Object.assign({}, EMPTY); reach = { state: "idle", host: "", time: "" }; last = null;
+    pushToForm(); clearErrors(); renderReach(); setView("form"); showStep(1, true);
+  }
+
+  /* ---------- static sections generated from the rules ---------- */
+  function renderStatic() {
+    var days = Math.floor((Date.now() - Date.parse(RULES.rules_verified_at + "T00:00:00Z")) / 86400000);
+    $("rules-chip").textContent = "Rules verified " + RULES.rules_verified_at + (days > 30 ? " · older than 30 days, re-read the sources" : "");
+    $("footer-verified").textContent = "Rules last verified: " + RULES.rules_verified_at;
+    var ul = $("cve-list"); clear(ul);
+    RULES.cves.forEach(function (c) {
+      ul.appendChild(el("li", {}, [el("span", { cls: "cve-id", text: c.id }), el("span", { text: c.title }),
+        el("span", {}, [doc.createTextNode(c.severity + " · " + c.cvss + " · "), link(c.advisory, "Official advisory")])]));
+    });
+    var tbl = $("envs-table"); clear(tbl);
+    tbl.appendChild(el("caption", { text: "Verified rules" }));
+    var head = el("tr");
+    ["Environment", "Branch or release", "Package", "Fixed in", "Verified"].forEach(function (k) { head.appendChild(el("th", { text: k, attrs: { scope: "col" } })); });
+    tbl.appendChild(el("thead", {}, [head]));
+    var body = el("tbody");
+    RULES.rules.forEach(function (r) {
+      var fixedVals = {}; Object.keys(r.per_cve).forEach(function (c) { fixedVals[r.per_cve[c].fixed] = true; });
+      var tr = el("tr");
+      [["Environment", PLATFORM_NAMES[r.platform] || r.platform, ""], ["Branch or release", r.release_label || ("PHP " + r.series), ""], ["Package", r.package || "php", "mono"],
+        ["Fixed in", Object.keys(fixedVals).join(" / "), "mono"], ["Verified", r.verified_at, ""]].forEach(function (c) {
+        tr.appendChild(el("td", { text: c[1], cls: c[2], attrs: { "data-label": c[0] } }));
+      });
+      body.appendChild(tr);
+    });
+    tbl.appendChild(body); keepTableRoles(tbl);
+    var host = $("sources-list"); clear(host);
+    var seen = {};
+    function group(title, urls) {
+      var list = [];
+      urls.forEach(function (u) { if (typeof u === "string" && u.indexOf("https://") === 0 && !seen[u]) { seen[u] = true; list.push(u); } });
+      if (!list.length) { return; }
+      var l = el("ul"); list.forEach(function (u) { l.appendChild(el("li", {}, [link(u, shortUrl(u))])); });
+      host.appendChild(el("div", {}, [el("h3", { text: title }), l]));
+    }
+    group("php-src advisories", RULES.cves.map(function (c) { return c.advisory; }));
+    [["upstream", "PHP project"], ["docker", "Docker official image"], ["plesk", "Plesk"], ["debian", "Debian"], ["ubuntu", "Ubuntu"]].forEach(function (p) {
+      var urls = [];
+      rulesOf(p[0]).forEach(function (r) { urls.push(r.source_url); (r.extra_sources || []).forEach(function (u) { urls.push(u); }); Object.keys(r.per_cve).forEach(function (c) { urls.push(r.per_cve[c].source_url); }); });
+      group(p[1], urls);
+    });
+    if (RULES.php82_end_of_support) { group("Other", [RULES.php82_end_of_support.source_url]); }
   }
 
   /* ---------- events ---------- */
-  function onChange(ev) {
-    var prevPlatform = input.platform;
-    syncInputFromForm();
-    if (input.platform !== prevPlatform) {
-      input.release = ""; input.docker_image = ""; input.plesk_os = "";
-      pushInputToForm(); renderReleaseOptions(); updateConditional();
-    }
+  function onInput(ev) {
+    var before = { host: a.domain, os: a.os_family, ps: a.package_source, ht: a.hosting_type };
+    syncFromForm();
+    if (before.host !== a.domain && reach.state !== "idle") { reach = { state: "idle", host: "", time: "" }; renderReach(); }
+    if (before.os !== a.os_family) { a.release = ""; renderReleaseOptions(); }
     if (ev && ev.target && ev.target.name) {
       var p = $("err-" + ev.target.name); if (p) { p.textContent = ""; }
       Array.prototype.forEach.call(doc.querySelectorAll('[name="' + ev.target.name + '"]'), function (c) { c.removeAttribute("aria-invalid"); });
     }
-    renderSummary(); renderStepper();
-    if (!$("step-2").hidden) { renderVersionStep(); }
-    if (!showingResult) { $("btn-next").textContent = t(step === totalSteps() ? "btn.assess" : "btn.next"); }
-  }
-  function next() {
-    syncInputFromForm();
-    var errs = stepErrors(step);
-    if (errs.length) { showErrors(errs); return; }
-    clearErrors();
-    if (step >= totalSteps()) { renderResult(); } else { showStep(step + 1, true); }
-  }
-  function back() { clearErrors(); if (step > 1) { showStep(step - 1, true); } }
-  function reset() {
-    input = Object.assign({}, EMPTY); pushInputToForm(); renderReleaseOptions(); updateConditional(); clearErrors(); renderSummary(); showStep(1, true);
+    refresh();
   }
   function copyCommand() {
-    var node = $("find-cmd"), text = node.textContent, hint = $("copy-hint"), btn = $("copy-btn");
+    var node = $("help-cmd"), text = node.textContent, hint = $("copy-hint");
     function fallback() {
       var range = doc.createRange(); range.selectNodeContents(node);
       var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-      hint.textContent = t("copy.hint"); hint.hidden = false;
+      hint.textContent = t("copy.hint");
     }
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function () {
-          hint.textContent = t("btn.copied"); hint.hidden = false;
-          window.setTimeout(function () { hint.hidden = true; }, 2000);
+          hint.textContent = t("btn.copied");
+          window.setTimeout(function () { hint.textContent = ""; }, 2000);
         }, fallback);
       } else { fallback(); }
     } catch (e) { fallback(); }
   }
-  function setLang(l) {
-    lang = l;
-    try { var u = new URL(window.location.href); u.searchParams.set("lang", l); window.history.replaceState(null, "", u.toString()); } catch (e) { /* not available on some local files */ }
-    renderAll();
-  }
-  function renderAll() {
-    applyStatic();
-    if (!ready) { showRulesError(); return; }
-    renderStatus(); renderEnvs(); renderSources(); renderReleaseOptions(); renderSummary();
-    if (showingResult) { renderResult(true); } else { showStep(step, false); if (lastErrors.length) { showErrors(lastErrors); } }
-    renderStepper();
-  }
 
-  // The error box exists only when the scripts really failed to provide the rules. It is built here and is not
-  // part of index.html, so readers that do not run JavaScript never see an error that does not apply.
+  // Built only when the scripts really failed, so readers that do not run JavaScript never see an error that does not apply.
   function showRulesError() {
     var old = $("rules-error");
     if (old) { old.parentNode.removeChild(old); }
     var missing = [];
     if (!RULES || !Array.isArray(RULES.rules) || !RULES.rules.length) { missing.push("rules.js"); }
     if (!E) { missing.push("engine.js"); }
-    if (!I) { missing.push("i18n.js"); }
-    var title = I ? t("error.rules.title") : "The rules could not be loaded";
-    var bodyText = I ? t("error.rules.body") : "The rules file is missing or unreadable, so the assessment is disabled. Reload the page; if the problem stays, report it to the project.";
+    if (!C) { missing.push("copy.js"); }
     var box = el("div", { cls: "notice notice-danger", attrs: { id: "rules-error", role: "alert" } }, [
-      el("strong", { text: title }), el("p", { text: bodyText }),
+      el("strong", { text: "The rules could not be loaded" }),
+      el("p", { text: "A script file is missing or unreadable, so the assessment is disabled. Reload the page; if the problem stays, report it to the project." }),
       el("p", { cls: "mono", attrs: { id: "rules-error-detail" }, text: "Missing or empty: " + missing.join(", ") }),
     ]);
-    var grid = $("assess-grid");
-    grid.parentNode.insertBefore(box, grid);
-    grid.hidden = true;
+    var stage = $("top");
+    stage.parentNode.insertBefore(box, stage);
+    $("assess").hidden = true;
   }
 
   function init() {
-    applyStatic();
-    ["en", "ro"].forEach(function (l) { $("lang-" + l).addEventListener("click", function () { setLang(l); }); });
     if (!ready) { showRulesError(); return; }
     var form = $("form");
-    form.addEventListener("change", onChange);
-    form.addEventListener("input", onChange);
+    form.addEventListener("change", onInput);
+    form.addEventListener("input", onInput);
+    form.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && ev.target.tagName === "INPUT" && ev.target.type === "text") { ev.preventDefault(); next(); } });
     form.addEventListener("submit", function (ev) { ev.preventDefault(); next(); });
     $("btn-next").addEventListener("click", next);
     $("btn-back").addEventListener("click", back);
-    $("btn-edit").addEventListener("click", function () { showStep(1, true); });
-    $("btn-new").addEventListener("click", reset);
     $("copy-btn").addEventListener("click", copyCommand);
-    renderAll();
+    $("reach-btn").addEventListener("click", checkReach);
+    renderStatic(); renderReleaseOptions(); renderReach();
+    showStep(1, false);
   }
   init();
 })();
