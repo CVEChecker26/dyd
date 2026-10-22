@@ -55,6 +55,7 @@
 
   /* ---------- static strings ---------- */
   function applyStatic() {
+    if (!I) { return; } // without strings the static English text of index.html stays as it is
     doc.documentElement.setAttribute("lang", lang);
     doc.title = t("meta.title");
     var md = doc.querySelector('meta[name="description"]');
@@ -378,25 +379,36 @@
   }
   function renderAll() {
     applyStatic();
-    if (!ready) { return; }
+    if (!ready) { showRulesError(); return; }
     renderStatus(); renderEnvs(); renderSources(); renderReleaseOptions(); renderSummary();
     if (showingResult) { renderResult(true); } else { showStep(step, false); if (lastErrors.length) { showErrors(lastErrors); } }
     renderStepper();
   }
 
+  // The error box exists only when the scripts really failed to provide the rules. It is built here and is not
+  // part of index.html, so readers that do not run JavaScript never see an error that does not apply.
+  function showRulesError() {
+    var old = $("rules-error");
+    if (old) { old.parentNode.removeChild(old); }
+    var missing = [];
+    if (!RULES || !Array.isArray(RULES.rules) || !RULES.rules.length) { missing.push("rules.js"); }
+    if (!E) { missing.push("engine.js"); }
+    if (!I) { missing.push("i18n.js"); }
+    var title = I ? t("error.rules.title") : "The rules could not be loaded";
+    var bodyText = I ? t("error.rules.body") : "The rules file is missing or unreadable, so the assessment is disabled. Reload the page; if the problem stays, report it to the project.";
+    var box = el("div", { cls: "notice notice-danger", attrs: { id: "rules-error", role: "alert" } }, [
+      el("strong", { text: title }), el("p", { text: bodyText }),
+      el("p", { cls: "mono", attrs: { id: "rules-error-detail" }, text: "Missing or empty: " + missing.join(", ") }),
+    ]);
+    var grid = $("assess-grid");
+    grid.parentNode.insertBefore(box, grid);
+    grid.hidden = true;
+  }
+
   function init() {
     applyStatic();
     ["en", "ro"].forEach(function (l) { $("lang-" + l).addEventListener("click", function () { setLang(l); }); });
-    if (!ready) {
-      // Names the script that did not load, so a report can say exactly what failed (static file names only).
-      var missing = [];
-      if (!RULES || !Array.isArray(RULES.rules) || !RULES.rules.length) { missing.push("rules.js"); }
-      if (!E) { missing.push("engine.js"); }
-      if (!I) { missing.push("i18n.js"); }
-      $("rules-error-detail").textContent = "Missing or empty: " + missing.join(", ");
-      $("rules-error").hidden = false; $("assess-grid").hidden = true;
-      return;
-    }
+    if (!ready) { showRulesError(); return; }
     var form = $("form");
     form.addEventListener("change", onChange);
     form.addEventListener("input", onChange);

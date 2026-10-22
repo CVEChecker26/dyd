@@ -272,6 +272,23 @@ describe("network, offline and CSP", () => {
       await ctx.close();
     });
   }
+  T("the error text is not in the static HTML and is not shown to a reader without JavaScript", async () => {
+    const html = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "..", "index.html"), "utf8");
+    assert.ok(!/could not be loaded|rules-error/i.test(html));
+    const ctx = await browser.newContext({ javaScriptEnabled: false });
+    const page = await ctx.newPage();
+    await page.goto(srv.base + "?utm_source=chatgpt.com&lang=en");
+    assert.ok(!/could not be loaded/i.test(await page.content()));
+    await ctx.close();
+  });
+  T("an unknown query parameter does not affect loading (published URL form)", async () => {
+    const { ctx, page, problems } = await newPage({ query: "?utm_source=chatgpt.com&lang=en" });
+    assert.strictEqual(await page.locator("#rules-error").count(), 0);
+    await fill(page, CASES[0].a);
+    assert.ok((await page.textContent("#result-heading")).includes(I.en["verdict.remediated"]));
+    assert.deepStrictEqual(problems, []);
+    await ctx.close();
+  });
   T("works from a local file (no server)", async () => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
