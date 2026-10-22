@@ -11,6 +11,8 @@
 
 > dyd↻ is an independent project and is not affiliated with or endorsed by the PHP Group, Debian, Ubuntu, Docker or Plesk. The name "dyd" has not undergone trademark or domain clearance (see `BRAND/BRAND.md`, section 8).
 
+**Tool:** <https://cvechecker26.github.io/dyd/> (checked on 2026-10-22: the Pages workflow run succeeded, the page answered HTTP 200 with the title "dyd↻", and `app.js`, `engine.js`, `i18n.js` and `rules.js` were served with HTTP 200).
+
 ![Dark theme](docs/screenshots/dark.png)
 
 ## What it covers, and what it does not

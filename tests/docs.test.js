@@ -19,7 +19,9 @@ test("docs use banned wording only inside explicit negations", () => {
 });
 test("docs do not claim live/published/deployed status before it is verified", () => {
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.ok(!/github\.io/.test(readme) || process.env.DYD_DEPLOY_VERIFIED === "1", "README links a github.io URL; verify the deployment first");
+  // The one Pages URL below was verified after deployment (workflow success, HTTP 200, title, scripts).
+  const other = (readme.match(/https?:\/\/[^\s)>]*github\.io[^\s)>]*/g) || []).filter((u) => u !== "https://cvechecker26.github.io/dyd/");
+  assert.deepStrictEqual(other, [], "only the verified Pages URL may be linked");
   assert.ok(!/\b(is live|now live|has been deployed|is deployed|is published)\b/i.test(readme));
 });
 test("independence statement is present in README and in the page", () => {
