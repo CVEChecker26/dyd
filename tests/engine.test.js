@@ -5,8 +5,15 @@ const { spawnSync } = require("node:child_process");
 const E = require("../engine.js");
 const RULES = require("../rules.js");
 
-const base = { platform: "upstream", release: "", version: "8.4.27", source: "web", restarted: "yes" };
-const ev = (o, r) => E.evaluate(Object.assign({}, base, o), r || RULES);
+const base = { platform: "upstream", release: "", version: "8.4.27", version_source: "web_diagnostic", restarted: "confirmed", update_applied: "confirmed" };
+// A consistent user: when the declared version is below the fixed one, they did not install the update
+// (an explicit update_applied in the test overrides this).
+const ev = (o, r) => {
+  const input = Object.assign({}, base, o);
+  const res = E.evaluate(input, r || RULES);
+  if (res.code === "update_version_conflict" && !("update_applied" in o)) return E.evaluate(Object.assign({}, input, { update_applied: "no" }), r || RULES);
+  return res;
+};
 const CVES = RULES.cves.map((c) => c.id);
 
 // ---------- Debian comparator ----------
@@ -174,7 +181,7 @@ test("reason codes", () => {
   assert.strictEqual(ev({ version: "8.6.0" }).code, "prerelease");
   assert.strictEqual(ev({ version: "8.5.0RC1" }).code, "prerelease");
   assert.strictEqual(ev({ platform: "debian", release: "13", version: "8.4.27" }).code, "unexpected_package_format");
-  assert.strictEqual(ev({ source: "unsure" }).code, "version_source_unconfirmed");
+  assert.strictEqual(ev({ version_source: "unknown" }).code, "version_source_unconfirmed");
   assert.strictEqual(ev({ restarted: "no" }).code, "restart_not_confirmed");
   assert.strictEqual(ev({ restarted: "unknown" }).code, "restart_not_confirmed");
 });
@@ -185,21 +192,21 @@ test("precedence", () => {
   assert.strictEqual(ev({ version: "8.4.20", restarted: "no" }).status, "affected");
   assert.strictEqual(ev({ version: "8.4.20", restarted: "unknown" }).status, "affected");
   // 5 before 6: below fix with unconfirmed source is verify
-  const a = ev({ version: "8.4.20", source: "unsure" });
+  const a = ev({ version: "8.4.20", version_source: "unknown" });
   assert.strictEqual(a.status, "verify"); assert.strictEqual(a.code, "version_source_unconfirmed");
   assert.strictEqual(a.versionIsFixed, false);
   // fixed + unconfirmed source is verify too
-  assert.strictEqual(ev({ version: "8.4.27", source: "unsure" }).code, "version_source_unconfirmed");
+  assert.strictEqual(ev({ version: "8.4.27", version_source: "unknown" }).code, "version_source_unconfirmed");
   // 5 before 7
-  assert.strictEqual(ev({ source: "unsure", restarted: "no" }).code, "version_source_unconfirmed");
+  assert.strictEqual(ev({ version_source: "unknown", restarted: "no" }).code, "version_source_unconfirmed");
   // 7: fixed and restart not "yes"
   assert.strictEqual(ev({ restarted: "no" }).status, "verify");
   // 8
   assert.strictEqual(ev({}).status, "remediated");
   // 2 before 3 and 5: docker other image with bad-for-branch version still reports docker_not_official
-  assert.strictEqual(ev({ platform: "docker", docker_image: "other", version: "8.1.1", source: "unsure" }).code, "docker_not_official");
+  assert.strictEqual(ev({ platform: "docker", docker_image: "other", version: "8.1.1", version_source: "unknown" }).code, "docker_not_official");
   // 3 before 5: prerelease wins over unconfirmed source
-  assert.strictEqual(ev({ version: "8.6.0RC1", source: "unsure" }).code, "prerelease");
+  assert.strictEqual(ev({ version: "8.6.0RC1", version_source: "unknown" }).code, "prerelease");
   // 1 before everything: invalid beats "other" environment checks
   assert.strictEqual(ev({ platform: "docker", docker_image: "other", version: "" }).status, "invalid");
   assert.strictEqual(ev({ platform: "plesk", plesk_os: "windows", version: "" }).field, "version");
@@ -228,7 +235,7 @@ test("no rules at all: platform not covered, never a verdict", () => {
 // ---------- result shape ----------
 test("result shape", () => {
   const r = ev({});
-  assert.deepStrictEqual(Object.keys(r.per_cve[0]).sort(), ["advisory", "fixed", "id", "source_url", "state", "title"]);
+  assert.deepStrictEqual(Object.keys(r.per_cve[0]).sort(), ["advisory", "code", "fixed", "id", "source_url", "state", "status", "title"]);
   assert.strictEqual(r.series, "8.4"); assert.strictEqual(r.version, "8.4.27"); assert.strictEqual(r.fixed, "8.4.27");
   assert.strictEqual(r.rule, "upstream-8.4"); assert.strictEqual(r.versionIsFixed, true);
   assert.deepStrictEqual(r.per_cve.map((c) => c.id), CVES);
@@ -266,8 +273,8 @@ test("invalid input cases", () => {
   inv({ version: "08.4.1" }, "version", "format");
   inv({ version: "8.4.27.1" }, "version", "format");
   inv({ version: "latest" }, "version", "format");
-  inv({ source: "" }, "source", "required");
-  inv({ source: "cli" }, "source", "invalid_value");
+  inv({ version_source: "" }, "version_source", "required");
+  inv({ version_source: "carrier-pigeon" }, "version_source", "invalid_value");
   inv({ restarted: "" }, "restarted", "required");
   inv({ restarted: "maybe" }, "restarted", "invalid_value");
   assert.strictEqual(ev({ version: "  8.4.27  " }).version, "8.4.27");
@@ -279,6 +286,6 @@ test("invalid input cases", () => {
 test("a 64-character version is accepted by length rule", () => {
   const v = "8.4.27-" + "1".repeat(57);
   assert.strictEqual(v.length, 64);
-  assert.strictEqual(E.validate({ platform: "debian", release: "13", version: v, source: "web", restarted: "yes" }).length, 0);
-  assert.strictEqual(E.validate({ platform: "debian", release: "13", version: v + "1", source: "web", restarted: "yes" })[0].reason, "too_long");
+  assert.strictEqual(E.validate({ platform: "debian", release: "13", version: v, version_source: "web_diagnostic", restarted: "confirmed" }).length, 0);
+  assert.strictEqual(E.validate({ platform: "debian", release: "13", version: v + "1", version_source: "web_diagnostic", restarted: "confirmed" })[0].reason, "too_long");
 });

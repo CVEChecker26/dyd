@@ -8,8 +8,8 @@ const { WHITELIST } = require("./helpers/server.js");
 const root = path.join(__dirname, "..");
 const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
 const html = read("index.html");
-const SITE_JS = ["app.js", "engine.js", "i18n.js", "rules.js"];
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
+const SITE_JS = ["app.js", "engine.js", "copy.js", "rules.js"];
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https:; base-uri 'none'; form-action 'none'";
 
 test("exact CSP meta and referrer meta", () => {
   assert.ok(html.includes(`<meta http-equiv="Content-Security-Policy" content="${CSP}">`));
@@ -27,13 +27,21 @@ test("no inline script, inline style, style attributes or javascript: URLs", () 
   for (const f of ["style.css", ...SITE_JS]) assert.ok(!/javascript:/i.test(read(f)), f);
 });
 test("no unsafe DOM, storage or network APIs in site JavaScript", () => {
-  const banned = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|localStorage|sessionStorage|indexedDB|document\.cookie|\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|importScripts|EventSource|window.open|postMessage|new Image/;
+  const banned = /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|localStorage|sessionStorage|indexedDB|document\.cookie|XMLHttpRequest|sendBeacon|WebSocket|importScripts|EventSource|window.open|postMessage|new Image/;
   for (const f of SITE_JS) {
     const src = read(f);
     const m = banned.exec(src);
     assert.ok(!m, `${f} contains ${m && m[0]}`);
   }
   assert.ok(!/console\./.test(read("app.js")), "app.js must not log");
+  for (const f of ["engine.js", "copy.js", "rules.js"]) assert.ok(!/fetch\(/.test(read(f)), `${f} must not use fetch`);
+  // The single permitted request: the optional reachability check (opaque, credential-free, to https only).
+  const app = read("app.js");
+  assert.strictEqual((app.match(/fetch\(/g) || []).length, 1);
+  const call = /fetch\("https:\/\/" \+ host \+ "\/", \{([^}]*)\}/.exec(app);
+  assert.ok(call, "fetch must only target https://<normalised host>/");
+  assert.match(call[1], /mode: "no-cors"/); assert.match(call[1], /credentials: "omit"/); assert.match(call[1], /referrerPolicy: "no-referrer"/);
+  assert.ok(!/body:/.test(call[1]), "the request must send no body");
 });
 test("every src/href/url() is relative, or an https anchor", () => {
   for (const m of html.matchAll(/<(\w+)\b[^>]*?\s(?:src|href)="([^"]*)"/g)) {
@@ -60,15 +68,32 @@ test("external links created from rules are https only and carry noopener norefe
   for (const u of urls) assert.match(u, /^https:\/\//);
   assert.match(read("app.js"), /rel: "noopener noreferrer"/);
 });
-test("i18n keys used in HTML and app.js exist", () => {
-  const I = require("../i18n.js");
-  const used = new Set();
-  for (const m of html.matchAll(/data-i18n(?:-aria)?="([^"]+)"/g)) used.add(m[1]);
-  for (const k of used) assert.ok(k in I.en, `HTML uses unknown key ${k}`);
+test("copy keys used by app.js exist, and dynamic key families are complete", () => {
+  const C = require("../copy.js");
   const app = read("app.js");
-  for (const m of app.matchAll(/\bt\("([\w.]+)"\s*[,)]/g)) assert.ok(m[1] in I.en, `app.js uses unknown key ${m[1]}`);
-  const dynamic = ["env.", "docker.", "plesk.", "sum.source.", "restart.", "verdict.", "state.", "why.", "note.", "status.review."];
-  for (const p of dynamic) assert.ok(Object.keys(I.en).some((k) => k.startsWith(p)), p);
+  for (const m of app.matchAll(/\bt\("([\w.]+)"\s*[,)]/g)) assert.ok(C.has(m[1]), `app.js uses unknown key ${m[1]}`);
+  // keys that app.js builds from field names and values
+  const fields = { hosting_type: ["shared", "managed", "vps", "dedicated", "cloud", "docker", "other", "unknown"], panel: ["cpanel", "plesk", "other", "none", "unknown"],
+    package_source: ["upstream", "distro", "docker_official", "docker_other", "plesk", "provider", "unknown"], os_family: ["debian", "ubuntu", "other"], plesk_os: ["linux", "windows", "unknown"],
+    version_source: ["web_diagnostic", "panel", "provider_support", "cli", "unknown"], runtimes: ["yes", "no", "unknown"], exec_model: ["fpm", "mod_php", "cgi", "frankenphp", "litespeed", "unknown"], mitigations_applied: ["yes", "no", "unknown"], update_applied: ["confirmed", "assumed", "no", "unknown"],
+    update_from: ["upstream", "os_vendor", "provider", "other", "unknown"], restarted: ["confirmed", "assumed", "no", "unknown"] };
+  for (const [f, vals] of Object.entries(fields)) for (const v of vals) assert.ok(C.has(`val.${f}.${v}`), `val.${f}.${v}`);
+  for (const f of ["domain", "site_name", "hosting_type", "provider", "panel", "package_source", "os_family", "release", "plesk_os", "version", "version_source", "runtimes", "exec_model", "update_applied", "update_from", "mitigations_applied", "restarted"]) assert.ok(C.has("sum." + f), "sum." + f);
+  for (const n of [1, 2, 3, 4]) assert.ok(C.has("step." + n));
+  for (const k of ["hosting.shared", "hosting.managed", "hosting.vps", "hosting.docker", "hosting.unknown"]) assert.ok(C.has(k), k);
+  for (const k of ["help.cmd.upstream", "help.cmd.docker", "help.cmd.distro", "help.cmd.plesk", "help.cmd.note.upstream", "help.cmd.note.docker", "help.cmd.note.distro", "help.cmd.note.plesk"]) assert.ok(C.has(k), k);
+  for (const s of ["verified", "declared", "inferred", "unknown"]) assert.ok(C.has("evg." + s) && C.has(`evg.${s}.d`));
+});
+test("every form field referenced by app.js exists in index.html", () => {
+  const app = read("app.js");
+  const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  for (const m of app.matchAll(/\$\("([\w-]+)"\)/g)) {
+    if (["report-heading", "btn-edit", "btn-print", "btn-download", "btn-new", "rules-error", "rules-error-detail"].includes(m[1])) continue;
+    assert.ok(ids.has(m[1]), `index.html lacks #${m[1]}`);
+  }
+  for (const m of app.matchAll(/\$\("(err-[\w]+)"\)/g)) assert.ok(ids.has(m[1]));
+  const names = new Set([...html.matchAll(/name="(\w+)"/g)].map((m) => m[1]));
+  for (const n of ["hosting_type", "package_source", "os_family", "plesk_os", "version_source", "runtimes", "exec_model", "update_applied", "mitigations_applied", "restarted"]) assert.ok(names.has(n), n);
 });
 test("no secret-like strings or env files in the repository", () => {
   const skip = new Set(["node_modules", ".git", ".local", "BRAND", "test-results", "playwright-report"]);
