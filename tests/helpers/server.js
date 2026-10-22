@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..", "..");
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
-const WHITELIST = ["index.html", "style.css", "app.js", "engine.js", "i18n.js", "rules.js", "rules.json", ".nojekyll"];
+const WHITELIST = ["index.html", "style.css", "app.js", "engine.js", "copy.js", "rules.js", "rules.json", ".nojekyll"];
 
 function start(prefix) {
   prefix = prefix || "/";

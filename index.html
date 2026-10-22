@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="dark light">
-<title>dyd↻ · Declared PHP setup check</title>
-<meta name="description" content="Free, open-source, static page. Declare your PHP version and environment and compare it with rules derived from the official advisories for CVE-2026-109618 and CVE-2026-109619. Runs in your browser; nothing you enter is sent anywhere.">
+<title>dyd↻ · PHP exposure check for CVE-2026-109618 and CVE-2026-109619</title>
+<meta name="description" content="A guided, evidence-based check of your declared PHP environment against CVE-2026-109618 and CVE-2026-109619. Free and open source. Runs in your browser; your answers are not uploaded.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<a class="skip-link" href="#assess" data-i18n="skip">Skip to the assessment</a>
+<body data-view="form">
+<a class="skip-link" href="#assess">Skip to the assessment</a>
 
-<header class="site-header">
-  <div class="container header-inner">
-    <a class="brand" href="#top" data-i18n-aria="brand.aria" aria-label="dyd↻">
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="#top" aria-label="dyd↻ home">
       <svg class="logo" viewBox="0 0 360 150" role="img" aria-hidden="true" focusable="false">
         <path class="logo-ink" d="M82 75C82 97.64 63.64 116 41 116C18.36 116 0 97.64 0 75C0 52.36 18.36 34 41 34C47.86 34 54.32 35.68 60 38.66L60 11C60 4.92 64.92 0 71 0C77.08 0 82 4.92 82 11ZM60 75C60 64.51 51.49 56 41 56C30.51 56 22 64.51 22 75C22 85.49 30.51 94 41 94C51.49 94 60 85.49 60 75Z"/>
         <path class="logo-ink" d="M176 139C176 145.08 171.08 150 165 150C158.92 150 154 145.08 154 139L154 111.34C148.32 114.32 141.86 116 135 116C112.36 116 94 97.64 94 75L94 45C94 38.92 98.92 34 105 34C111.08 34 116 38.92 116 45L116 75C116 85.49 124.51 94 135 94C145.49 94 154 85.49 154 75L154 45C154 38.92 158.92 34 165 34C171.08 34 176 38.92 176 45Z"/>
@@ -26,212 +26,341 @@
         <path class="logo-arrow" d="M357.6 85.61C353.06 102.58 338.21 114.76 320.68 115.91C303.15 117.06 286.84 106.92 280.12 90.69C273.4 74.46 277.76 55.76 290.97 44.17C304.17 32.59 323.29 30.71 338.5 39.49L340.93 35.28C342.15 33.17 344.49 31.98 346.91 32.23C349.33 32.48 351.37 34.14 352.13 36.45L359.46 59.01C360 60.67 359.81 62.48 358.94 64C358.07 65.51 356.59 66.58 354.88 66.94L331.68 71.87C329.3 72.37 326.85 71.43 325.42 69.46C323.99 67.49 323.85 64.87 325.07 62.76L327.5 58.55C320.45 54.48 311.59 55.35 305.47 60.72C299.35 66.08 297.33 74.75 300.45 82.27C303.56 89.79 311.12 94.49 319.24 93.96C327.36 93.43 334.25 87.78 336.35 79.92C337.92 74.05 343.96 70.57 349.82 72.14C355.69 73.71 359.18 79.74 357.6 85.61Z"/>
       </svg>
     </a>
-    <nav class="nav" data-i18n-aria="nav.aria" aria-label="Main navigation">
+    <nav class="nav" aria-label="Main navigation">
       <ul>
-        <li><a href="#assess" data-i18n="nav.assess">Assessment</a></li>
-        <li><a href="#how" data-i18n="nav.how">How it decides</a></li>
-        <li><a href="#envs" data-i18n="nav.envs">Environments</a></li>
-        <li><a href="#sources" data-i18n="nav.sources">Official sources</a></li>
-        <li><a href="#privacy" data-i18n="nav.privacy">Privacy and limits</a></li>
+        <li><a href="#how">How it decides</a></li>
+        <li><a href="#envs">Coverage</a></li>
+        <li><a href="#sources">Sources</a></li>
+        <li><a href="#privacy">Privacy</a></li>
       </ul>
     </nav>
-    <div class="lang" role="group" data-i18n-aria="lang.aria" aria-label="Language">
-      <button type="button" id="lang-en" data-lang="en" aria-pressed="true" lang="en" data-i18n="lang.en" data-i18n-aria="lang.en.aria" aria-label="EN – English">EN</button>
-      <button type="button" id="lang-ro" data-lang="ro" aria-pressed="false" lang="ro" data-i18n="lang.ro" data-i18n-aria="lang.ro.aria" aria-label="RO – Română">RO</button>
-    </div>
+    <p class="rules-chip" id="rules-chip"></p>
   </div>
 </header>
 
 <noscript>
-  <div class="container"><p class="notice notice-warn">dyd↻ needs JavaScript to compare the data you declare with the rules. Nothing you enter is collected or sent; the script only runs in your browser.</p></div>
+  <div class="container"><p class="notice notice-warn">dyd↻ needs JavaScript to compare the details you enter with the rules. Nothing you enter is collected or sent; the script only runs in your browser.</p></div>
 </noscript>
 
 <main id="main">
-  <section class="hero container" id="top">
-    <div class="hero-copy">
-      <h1 data-i18n="hero.h1">Check a declared PHP setup against two critical advisories.</h1>
-      <p class="lead" data-i18n="hero.lead">Declare your PHP version and environment. dyd↻ compares them with rules derived from the official advisories for CVE-2026-109618 and CVE-2026-109619 and shows what the declared data says.</p>
-      <p><a class="btn btn-primary" href="#assess" data-i18n="hero.cta">Start the assessment</a></p>
-      <ul class="facts">
-        <li><strong data-i18n="hero.fact1.t">No scanning</strong><span data-i18n="hero.fact1.d">It never contacts a server. You type the data in.</span></li>
-        <li><strong data-i18n="hero.fact2.t">Runs in your browser</strong><span data-i18n="hero.fact2.d">No backend, account, cookies, analytics or storage.</span></li>
-        <li><strong data-i18n="hero.fact3.t">Open source</strong><span data-i18n="hero.fact3.d">Rules and logic are plain files you can read.</span></li>
+  <section class="stage container" id="top">
+    <div class="brief">
+      <p class="eyebrow">PHP security assessment · 2 CVEs in scope</p>
+      <h1>Check your exposure to two critical PHP vulnerabilities.</h1>
+      <p class="lead">Tell dyd↻ about your website and its PHP setup. It compares what you know with the official advisories, shows the evidence behind each result, and tells you what to do next.</p>
+      <ul class="cve-list" aria-label="Vulnerabilities in scope" id="cve-list">
+        <li><span class="cve-id">CVE-2026-109618</span><span>Remote code execution via out-of-memory corruption</span></li>
+        <li><span class="cve-id">CVE-2026-109619</span><span>Remote code execution via stale global state</span></li>
       </ul>
+      <div class="need">
+        <p class="label">You will need</p>
+        <ul>
+          <li>Your website domain</li>
+          <li>The PHP version, and where you read it</li>
+          <li>Whether the update was installed and PHP restarted</li>
+        </ul>
+        <p class="muted small">Any detail you do not know is fine: dyd↻ explains how to find it and says plainly what stays uncertain.</p>
+      </div>
+      <p class="privacy-line">Runs in your browser. No account, tracking or upload. The only outbound request is the optional reachability check that you start yourself.</p>
     </div>
-    <aside class="card status-card" aria-labelledby="status-h">
-      <h2 id="status-h" data-i18n="status.h">Rules status</h2>
-      <dl class="kv" id="status-list"></dl>
-      <p class="notice notice-warn" id="stale-warning" hidden></p>
-    </aside>
-  </section>
 
-  <section class="section container" id="assess" aria-labelledby="assess-h">
-    <h2 id="assess-h" data-i18n="assess.h">Assessment</h2>
-    <p class="muted" data-i18n="assess.intro">Answer a few questions about the PHP that serves your site. Nothing leaves this page.</p>
-
-    <div class="assess-grid" id="assess-grid">
-      <div class="card assess-card">
-        <ol class="stepper" id="stepper" data-i18n-aria="stepper.aria" aria-label="Progress">
-          <li data-step="1"><span class="stepper-n">1</span><span data-i18n="step.env">Environment</span></li>
-          <li data-step="2"><span class="stepper-n">2</span><span data-i18n="step.version">Version</span></li>
-          <li data-step="3"><span class="stepper-n">3</span><span data-i18n="step.confirm">Confirmations</span></li>
-          <li data-step="4"><span class="stepper-n">4</span><span data-i18n="step.result">Result</span></li>
-        </ol>
+    <div class="console card" id="assess" aria-labelledby="assess-h">
+      <div class="console-head">
+        <h2 id="assess-h">Assessment</h2>
         <p class="step-status" id="step-status" role="status" aria-live="polite"></p>
+      </div>
+      <ol class="stepper" id="stepper" aria-label="Progress">
+        <li data-step="1"><span class="stepper-n">1</span><span class="stepper-t">Site</span></li>
+        <li data-step="2"><span class="stepper-n">2</span><span class="stepper-t">Hosting</span></li>
+        <li data-step="3"><span class="stepper-n">3</span><span class="stepper-t">PHP</span></li>
+        <li data-step="4"><span class="stepper-n">4</span><span class="stepper-t">Update status</span></li>
+      </ol>
 
-        <form id="form" novalidate autocomplete="off">
-          <div class="step" id="step-1" data-step="1">
-            <fieldset id="fs-env" aria-describedby="err-platform">
-              <legend data-i18n="env.legend">Where does the PHP that serves your site run?</legend>
-              <div class="tiles">
-                <label class="tile"><input type="radio" name="platform" value="upstream"><span class="tile-t" data-i18n="env.upstream">PHP from php.net</span><span class="tile-d" data-i18n="env.upstream.d">Built from source or official binaries</span></label>
-                <label class="tile"><input type="radio" name="platform" value="docker"><span class="tile-t" data-i18n="env.docker">Docker container</span><span class="tile-d" data-i18n="env.docker.d">Official php image or another image</span></label>
-                <label class="tile"><input type="radio" name="platform" value="debian"><span class="tile-t" data-i18n="env.debian">Debian</span><span class="tile-d" data-i18n="env.debian.d">Distribution PHP packages</span></label>
-                <label class="tile"><input type="radio" name="platform" value="ubuntu"><span class="tile-t" data-i18n="env.ubuntu">Ubuntu</span><span class="tile-d" data-i18n="env.ubuntu.d">Distribution PHP packages</span></label>
-                <label class="tile"><input type="radio" name="platform" value="plesk"><span class="tile-t" data-i18n="env.plesk">Plesk</span><span class="tile-d" data-i18n="env.plesk.d">PHP provided by Plesk</span></label>
-                <label class="tile"><input type="radio" name="platform" value="other"><span class="tile-t" data-i18n="env.other">Something else / not sure</span><span class="tile-d" data-i18n="env.other.d">Another system, or you do not know</span></label>
-              </div>
-              <p class="field-error" id="err-platform" role="alert"></p>
-            </fieldset>
-
-            <fieldset id="fs-docker" aria-describedby="err-docker_image" hidden>
-              <legend data-i18n="docker.legend">Which image?</legend>
-              <label class="choice"><input type="radio" name="docker_image" value="official"><span data-i18n="docker.official">The official php image from Docker Hub</span></label>
-              <label class="choice"><input type="radio" name="docker_image" value="other"><span data-i18n="docker.other">Another or derived image</span></label>
-              <p class="field-error" id="err-docker_image" role="alert"></p>
-            </fieldset>
-
-            <fieldset id="fs-plesk" aria-describedby="err-plesk_os" hidden>
-              <legend data-i18n="plesk.legend">Which Plesk system?</legend>
-              <label class="choice"><input type="radio" name="plesk_os" value="linux"><span data-i18n="plesk.linux">Plesk on Linux</span></label>
-              <label class="choice"><input type="radio" name="plesk_os" value="windows"><span data-i18n="plesk.windows">Plesk on Windows</span></label>
-              <p class="field-error" id="err-plesk_os" role="alert"></p>
-            </fieldset>
-
-            <div class="field" id="fs-release" hidden>
-              <label for="release" data-i18n="release.label">Release</label>
-              <select id="release" name="release" aria-describedby="err-release"></select>
-              <p class="field-error" id="err-release" role="alert"></p>
+      <form id="form" novalidate autocomplete="off">
+        <div class="step" id="step-1" data-step="1">
+          <div class="field">
+            <label for="domain">Website domain or URL</label>
+            <input type="text" id="domain" name="domain" inputmode="url" placeholder="example.com" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="domain-hint err-domain">
+            <p class="hint" id="domain-hint">Only the host name is used. Never enter passwords, keys or tokens. A domain alone does not reveal which PHP runtime serves the site.</p>
+            <p class="field-error" id="err-domain" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="site_name">Site or project name <span class="optional">optional</span></label>
+            <input type="text" id="site_name" name="site_name" maxlength="60" aria-describedby="err-site_name">
+            <p class="field-error" id="err-site_name" role="alert"></p>
+          </div>
+          <div class="reach">
+            <div class="reach-row">
+              <button type="button" class="btn btn-small" id="reach-btn">Check that it answers from this browser</button>
+              <span class="optional">optional</span>
             </div>
-          </div>
-
-          <div class="step" id="step-2" data-step="2" hidden>
-            <div class="field">
-              <label for="version" id="version-label" data-i18n="version.label.upstream">Declared PHP version</label>
-              <p class="hint" id="version-hint"></p>
-              <input class="mono" type="text" id="version" name="version" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="version-hint err-version">
-              <p class="field-error" id="err-version" role="alert"></p>
-            </div>
-            <details class="find">
-              <summary data-i18n="version.find">How do I find it?</summary>
-              <div class="find-body">
-                <p id="find-intro"></p>
-                <div class="cmd">
-                  <code id="find-cmd" class="mono"></code>
-                  <button type="button" class="btn btn-small" id="copy-btn" data-i18n="btn.copy" data-i18n-aria="copy.aria" aria-label="Copy the command">Copy</button>
-                </div>
-                <p class="hint" id="copy-hint" role="status" hidden></p>
-                <p class="muted" id="find-note"></p>
-              </div>
-            </details>
-          </div>
-
-          <div class="step" id="step-3" data-step="3" hidden>
-            <fieldset id="fs-source" aria-describedby="err-source">
-              <legend data-i18n="source.legend">Where did you read that version?</legend>
-              <label class="choice"><input type="radio" name="source" value="web"><span data-i18n="source.web">From the PHP or package that actually serves the site</span></label>
-              <label class="choice"><input type="radio" name="source" value="unsure"><span data-i18n="source.unsure">Only from a command-line reading, or I am not sure</span></label>
-              <p class="field-error" id="err-source" role="alert"></p>
-            </fieldset>
-            <fieldset id="fs-restart" aria-describedby="err-restarted">
-              <legend data-i18n="restart.legend">PHP processes were started or restarted after installation (PHP-FPM, Apache, other), or the container was recreated.</legend>
-              <label class="choice"><input type="radio" name="restarted" value="yes"><span data-i18n="restart.yes">Yes</span></label>
-              <label class="choice"><input type="radio" name="restarted" value="no"><span data-i18n="restart.no">No</span></label>
-              <label class="choice"><input type="radio" name="restarted" value="unknown"><span data-i18n="restart.unknown">I don't know</span></label>
-              <p class="field-error" id="err-restarted" role="alert"></p>
-            </fieldset>
-          </div>
-
-          <div class="actions" id="actions">
-            <button type="button" class="btn" id="btn-back" data-i18n="btn.back" hidden>Back</button>
-            <button type="button" class="btn btn-primary" id="btn-next" data-i18n="btn.next">Next</button>
-          </div>
-        </form>
-
-        <div id="result" hidden>
-          <h3 id="result-heading" tabindex="-1"></h3>
-          <div id="result-body"></div>
-          <div class="actions">
-            <button type="button" class="btn" id="btn-edit" data-i18n="btn.edit">Edit answers</button>
-            <button type="button" class="btn btn-primary" id="btn-new" data-i18n="btn.new">New assessment</button>
+            <p class="hint">Sends one HTTPS request from your browser to the domain you entered. dyd↻ receives nothing. An answer proves only that the site responded; it does not show the PHP version, and a failed request does not mean the site is down.</p>
+            <p class="reach-status" id="reach-status" role="status" aria-live="polite"></p>
           </div>
         </div>
-      </div>
 
-      <aside class="card summary-card" aria-labelledby="summary-h">
-        <h3 id="summary-h" data-i18n="summary.h">Declared data</h3>
-        <div id="summary"></div>
-      </aside>
+        <div class="step" id="step-2" data-step="2" hidden>
+          <fieldset id="fs-hosting_type" aria-describedby="err-hosting_type">
+            <legend>Where is the website hosted?</legend>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="hosting_type" value="shared"><span>Shared hosting</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="managed"><span>Managed WordPress or PHP</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="vps"><span>VPS</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="dedicated"><span>Dedicated server</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="cloud"><span>Cloud hosting</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="docker"><span>Docker / containers</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="other"><span>Other</span></label>
+              <label class="chip"><input type="radio" name="hosting_type" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="field-error" id="err-hosting_type" role="alert"></p>
+          </fieldset>
+          <div class="two-fields">
+            <div class="field">
+              <label for="provider">Hosting provider <span class="optional">optional</span></label>
+              <input type="text" id="provider" name="provider" maxlength="60" aria-describedby="err-provider">
+              <p class="field-error" id="err-provider" role="alert"></p>
+            </div>
+            <div class="field" id="field-panel">
+              <label for="panel">Control panel <span class="optional">optional</span></label>
+              <select id="panel" name="panel">
+                <option value="">Choose…</option>
+                <option value="cpanel">cPanel</option>
+                <option value="plesk">Plesk</option>
+                <option value="other">Another panel</option>
+                <option value="none">No panel</option>
+                <option value="unknown">I don't know</option>
+              </select>
+            </div>
+          </div>
+          <p class="callout" id="hosting-note" hidden></p>
+        </div>
+
+        <div class="step" id="step-3" data-step="3" hidden>
+          <fieldset id="fs-package_source" aria-describedby="err-package_source">
+            <legend>How is PHP installed?</legend>
+            <div class="chips">
+              <label class="chip" data-ps="upstream"><input type="radio" name="package_source" value="upstream"><span>Built or installed from php.net</span></label>
+              <label class="chip" data-ps="distro"><input type="radio" name="package_source" value="distro"><span>Operating-system package</span></label>
+              <label class="chip" data-ps="docker_official"><input type="radio" name="package_source" value="docker_official"><span>Official Docker <code>php</code> image</span></label>
+              <label class="chip" data-ps="docker_other"><input type="radio" name="package_source" value="docker_other"><span>Another or custom Docker image</span></label>
+              <label class="chip" data-ps="plesk"><input type="radio" name="package_source" value="plesk"><span>Plesk-provided PHP</span></label>
+              <label class="chip" data-ps="provider"><input type="radio" name="package_source" value="provider"><span>Managed by my provider</span></label>
+              <label class="chip" data-ps="unknown"><input type="radio" name="package_source" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="field-error" id="err-package_source" role="alert"></p>
+          </fieldset>
+
+          <fieldset id="fs-os_family" aria-describedby="err-os_family" hidden>
+            <legend>Which distribution?</legend>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="os_family" value="debian"><span>Debian</span></label>
+              <label class="chip"><input type="radio" name="os_family" value="ubuntu"><span>Ubuntu</span></label>
+              <label class="chip"><input type="radio" name="os_family" value="other"><span>Another distribution</span></label>
+            </div>
+            <p class="field-error" id="err-os_family" role="alert"></p>
+          </fieldset>
+          <div class="field" id="field-release" hidden>
+            <label for="release">Release</label>
+            <select id="release" name="release" aria-describedby="err-release"></select>
+            <p class="field-error" id="err-release" role="alert"></p>
+          </div>
+          <fieldset id="fs-plesk_os" aria-describedby="err-plesk_os" hidden>
+            <legend>Which Plesk system?</legend>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="plesk_os" value="linux"><span>Plesk on Linux</span></label>
+              <label class="chip"><input type="radio" name="plesk_os" value="windows"><span>Plesk on Windows</span></label>
+              <label class="chip"><input type="radio" name="plesk_os" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="field-error" id="err-plesk_os" role="alert"></p>
+          </fieldset>
+
+          <div class="field" id="field-version">
+            <label for="version" id="version-label">PHP version</label>
+            <p class="hint" id="version-hint"></p>
+            <input class="mono" type="text" id="version" name="version" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="version-hint err-version">
+            <label class="check"><input type="checkbox" id="version_unknown" name="version_unknown" value="yes"><span>I don't know my PHP version</span></label>
+            <p class="field-error" id="err-version" role="alert"></p>
+          </div>
+          <div class="help" id="version-help" hidden>
+            <p class="label">How to find it</p>
+            <ul id="help-list"></ul>
+            <div class="cmd" id="help-cmd-row" hidden>
+              <code id="help-cmd" class="mono"></code>
+              <button type="button" class="btn btn-small" id="copy-btn" aria-label="Copy the command">Copy</button>
+            </div>
+            <p class="hint" id="copy-hint" role="status"></p>
+          </div>
+
+          <fieldset id="fs-version_source" aria-describedby="err-version_source">
+            <legend>Where did you read that version?</legend>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="version_source" value="web_diagnostic"><span>A page served by the website (for example phpinfo or a diagnostic screen)</span></label>
+              <label class="chip"><input type="radio" name="version_source" value="panel"><span>The hosting panel, for this website</span></label>
+              <label class="chip"><input type="radio" name="version_source" value="provider_support"><span>My hosting provider's support</span></label>
+              <label class="chip"><input type="radio" name="version_source" value="cli"><span>A command line (this may differ from the web runtime)</span></label>
+              <label class="chip"><input type="radio" name="version_source" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="field-error" id="err-version_source" role="alert"></p>
+          </fieldset>
+          <fieldset id="fs-runtimes">
+            <legend>Does the server run more than one PHP version, or a different one for the command line?</legend>
+            <div class="chips chips-inline">
+              <label class="chip"><input type="radio" name="runtimes" value="yes"><span>Yes</span></label>
+              <label class="chip"><input type="radio" name="runtimes" value="no"><span>No</span></label>
+              <label class="chip"><input type="radio" name="runtimes" value="unknown"><span>I don't know</span></label>
+            </div>
+          </fieldset>
+          <fieldset id="fs-exec_model" aria-describedby="exec-hint">
+            <legend>How does the web server run PHP? <span class="optional">optional</span></legend>
+            <p class="hint" id="exec-hint">It does not change the result. It only decides which restart instructions and context are shown.</p>
+            <div class="chips">
+              <label class="chip"><input type="radio" name="exec_model" value="fpm"><span>PHP-FPM</span></label>
+              <label class="chip"><input type="radio" name="exec_model" value="mod_php"><span>Apache with mod_php</span></label>
+              <label class="chip"><input type="radio" name="exec_model" value="cgi"><span>php-cgi</span></label>
+              <label class="chip"><input type="radio" name="exec_model" value="frankenphp"><span>FrankenPHP</span></label>
+              <label class="chip"><input type="radio" name="exec_model" value="litespeed"><span>LiteSpeed</span></label>
+              <label class="chip"><input type="radio" name="exec_model" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="callout" id="exec-help" hidden></p>
+          </fieldset>
+        </div>
+
+        <div class="step" id="step-4" data-step="4" hidden>
+          <fieldset id="fs-update_applied" aria-describedby="err-update_applied">
+            <legend>Was the security update for these CVEs installed?</legend>
+            <div class="chips chips-inline">
+              <label class="chip"><input type="radio" name="update_applied" value="confirmed"><span>Yes, I confirmed it</span></label>
+              <label class="chip"><input type="radio" name="update_applied" value="assumed"><span>I think so</span></label>
+              <label class="chip"><input type="radio" name="update_applied" value="no"><span>No</span></label>
+              <label class="chip"><input type="radio" name="update_applied" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="field-error" id="err-update_applied" role="alert"></p>
+          </fieldset>
+          <div class="field" id="field-update_from" hidden>
+            <label for="update_from">Where did the update come from? <span class="optional">optional</span></label>
+            <select id="update_from" name="update_from">
+              <option value="">Choose…</option>
+              <option value="upstream">PHP project (php.net)</option>
+              <option value="os_vendor">Operating-system vendor</option>
+              <option value="provider">Hosting provider</option>
+              <option value="other">Another source</option>
+              <option value="unknown">I don't know</option>
+            </select>
+          </div>
+          <fieldset id="fs-mitigations_applied" hidden>
+            <legend>Did you apply any of the temporary mitigations from the PHP announcement? <span class="optional">optional</span></legend>
+            <p class="hint">They never change the result: only an update is a complete solution.</p>
+            <div class="chips chips-inline">
+              <label class="chip"><input type="radio" name="mitigations_applied" value="yes"><span>Yes</span></label>
+              <label class="chip"><input type="radio" name="mitigations_applied" value="no"><span>No</span></label>
+              <label class="chip"><input type="radio" name="mitigations_applied" value="unknown"><span>I don't know</span></label>
+            </div>
+          </fieldset>
+          <fieldset id="fs-restarted" aria-describedby="restart-hint err-restarted">
+            <legend>Were PHP processes restarted (PHP-FPM, Apache, other) or the container recreated after installing it?</legend>
+            <p class="hint" id="restart-hint">Running processes keep the old code until they are restarted. A restart alone does not fix an installation that has not been updated.</p>
+            <div class="chips chips-inline">
+              <label class="chip"><input type="radio" name="restarted" value="confirmed"><span>Yes, I confirmed it</span></label>
+              <label class="chip"><input type="radio" name="restarted" value="assumed"><span>I think so</span></label>
+              <label class="chip"><input type="radio" name="restarted" value="no"><span>No</span></label>
+              <label class="chip"><input type="radio" name="restarted" value="unknown"><span>I don't know</span></label>
+            </div>
+            <p class="field-error" id="err-restarted" role="alert"></p>
+          </fieldset>
+        </div>
+
+        <div class="actions" id="actions">
+          <button type="button" class="btn" id="btn-back" hidden>Back</button>
+          <button type="button" class="btn btn-primary" id="btn-next">Continue</button>
+        </div>
+        <details class="answers" id="answers">
+          <summary>Your answers so far</summary>
+          <div id="summary"></div>
+        </details>
+      </form>
     </div>
+  </section>
+
+  <section class="report-view container" id="report-view" hidden aria-labelledby="report-heading">
+    <div id="report"></div>
   </section>
 
   <section class="section container" id="how" aria-labelledby="how-h">
-    <h2 id="how-h" data-i18n="how.h">How it decides</h2>
-    <p class="muted" data-i18n="how.lead">The checks run in a fixed order and stop at the first one that decides.</p>
-    <div class="cards3">
-      <article class="card verdict-card verdict-affected"><h3><span class="icon" aria-hidden="true">!</span> <span data-i18n="verdict.affected">Affected according to the advisory</span></h3><p data-i18n="how.affected.d"></p></article>
-      <article class="card verdict-card verdict-remediated"><h3><span class="icon" aria-hidden="true">✓</span> <span data-i18n="verdict.remediated">Remediated according to the declared data</span></h3><p data-i18n="how.remediated.d"></p></article>
-      <article class="card verdict-card verdict-verify"><h3><span class="icon" aria-hidden="true">?</span> <span data-i18n="verdict.verify">Needs further verification</span></h3><p data-i18n="how.verify.d"></p></article>
+    <h2 id="how-h">How dyd↻ decides</h2>
+    <p class="muted">Each vulnerability is evaluated separately. Every fact is labelled as declared by you, verified by dyd↻, inferred, or unknown. Checks run in a fixed order and stop at the first one that decides.</p>
+    <div class="how-grid">
+      <article class="how-card st-affected"><h3><span class="icon" aria-hidden="true">!</span> Affected according to the available evidence</h3><p>The declared version is below the fixed version, the version comes from the PHP that serves the site, and nothing contradicts it. A restart does not change this.</p></article>
+      <article class="how-card st-supported"><h3><span class="icon" aria-hidden="true">✓</span> Remediation supported by the available evidence</h3><p>The declared version is at or above the fixed version, it comes from the PHP that serves the site, you confirmed an update and a restart, and no other runtime is in doubt. This is a statement about these two CVEs only.</p></article>
+      <article class="how-card st-verify"><h3><span class="icon" aria-hidden="true">?</span> Needs further verification</h3><p>A detail is missing, unconfirmed, contradictory or outside the verified rules. dyd↻ does not guess.</p></article>
     </div>
     <div class="two-col">
       <div>
-        <h3 data-i18n="how.order.h">Order of the checks</h3>
+        <h3>Order of the checks</h3>
         <ol class="plain-list">
-          <li data-i18n="how.step.1"></li><li data-i18n="how.step.2"></li><li data-i18n="how.step.3"></li><li data-i18n="how.step.4"></li>
-          <li data-i18n="how.step.5"></li><li data-i18n="how.step.6"></li><li data-i18n="how.step.7"></li><li data-i18n="how.step.8"></li>
+          <li>Missing or malformed input stops here and shows errors beside the fields.</li>
+          <li>Unsupported environments, provider-managed PHP, non-official Docker images and Plesk on Windows need further verification.</li>
+          <li>Pre-release versions, unsupported branches and package versions in an unexpected format need further verification.</li>
+          <li>Each CVE is compared with the fixed version for the selected environment, using that environment's own method.</li>
+          <li>An update that you say was installed, but a version below the fixed one, is a conflict that needs clarification.</li>
+          <li>A version that is not confirmed as coming from the PHP serving the site needs further verification.</li>
+          <li>Below the fixed version: affected. At or above it: remediation is supported only if you confirmed the update and a restart and did not say that other PHP runtimes exist; otherwise it needs further verification.</li>
         </ol>
       </div>
       <div>
-        <h3 data-i18n="never.h">What dyd↻ never does</h3>
+        <h3>What dyd↻ never does</h3>
         <ul class="plain-list">
-          <li data-i18n="never.1"></li><li data-i18n="never.2"></li><li data-i18n="never.3"></li>
-          <li data-i18n="never.4"></li><li data-i18n="never.5"></li><li data-i18n="never.6"></li>
+          <li>It never claims or implies that a server was scanned, audited or certified.</li>
+          <li>It never logs in, reads credentials or asks for them.</li>
+          <li>It never infers a PHP version from a CMS, a server header or a domain name.</li>
+          <li>It never treats a failed browser request as proof that a site is vulnerable, fine, or offline.</li>
+          <li>It never judges other CVEs or presents a mitigation as a replacement for updating.</li>
         </ul>
       </div>
     </div>
   </section>
 
   <section class="section container" id="envs" aria-labelledby="envs-h">
-    <h2 id="envs-h" data-i18n="envs.h">Environments covered</h2>
-    <p class="muted" data-i18n="envs.lead"></p>
-    <table class="data-table" id="envs-table"></table>
-    <h3 data-i18n="envs.always.h">Always "Needs further verification"</h3>
-    <ul class="chips">
-      <li data-i18n="envs.always.1"></li><li data-i18n="envs.always.2"></li><li data-i18n="envs.always.3"></li><li data-i18n="envs.always.4"></li>
-      <li data-i18n="envs.always.5"></li><li data-i18n="envs.always.6"></li><li data-i18n="envs.always.7"></li><li data-i18n="envs.always.8"></li>
-      <li data-i18n="envs.always.9"></li><li data-i18n="envs.always.10"></li><li data-i18n="envs.always.11"></li>
+    <h2 id="envs-h">Coverage</h2>
+    <p class="muted">Generated from the rules file. Distribution packages are compared only with the package version of the selected release, never with upstream PHP numbers.</p>
+    <details class="coverage">
+      <summary>Show the verified rules</summary>
+      <table class="data-table" id="envs-table"></table>
+    </details>
+    <h3>Always "Needs further verification"</h3>
+    <ul class="chips-static">
+      <li>PHP 8.1 and older from php.net</li>
+      <li>Pre-releases (for example 8.6)</li>
+      <li>Provider-managed PHP, cPanel / EasyApache, CloudLinux</li>
+      <li>Derived or custom Docker images</li>
+      <li>Plesk on Windows and older Plesk PHP branches</li>
+      <li>RHEL and derivatives, SUSE, Alpine, Amazon Linux</li>
+      <li>Windows</li>
+      <li>Third-party repositories (Sury, Remi, PPAs)</li>
+      <li>Debian testing and unstable</li>
     </ul>
   </section>
 
   <section class="section container" id="sources" aria-labelledby="sources-h">
-    <h2 id="sources-h" data-i18n="sources.h">Official sources</h2>
-    <p class="muted" data-i18n="sources.lead"></p>
+    <h2 id="sources-h">Official sources</h2>
+    <p class="muted">Every rule links to the sources it was derived from. The rules were checked by reading these pages; an independent human review is still pending.</p>
     <div id="sources-list" class="sources"></div>
   </section>
 
   <section class="section container" id="privacy" aria-labelledby="privacy-h">
-    <h2 id="privacy-h" data-i18n="privacy.h">Privacy and limits</h2>
+    <h2 id="privacy-h">Privacy and limits</h2>
     <div class="two-col">
       <div>
-        <p data-i18n="privacy.1"></p>
-        <p data-i18n="privacy.offline"></p>
-        <p data-i18n="privacy.2"></p>
+        <p>Nothing you enter is stored or uploaded. The page uses no cookies, no browser storage and no analytics. After the page has loaded it makes no requests of its own, except the optional reachability check, which sends one HTTPS request from your browser to the domain you entered, only when you press the button.</p>
+        <p>Reports are created in your browser. You can print or save them locally; nothing is submitted.</p>
+        <p>The page itself is served by GitHub Pages, which may process visitor IP addresses under its own policy.</p>
       </div>
       <div>
         <ul class="plain-list">
-          <li data-i18n="limits.1"></li><li data-i18n="limits.2"></li><li data-i18n="limits.3"></li>
+          <li>The result depends on what you declare. A wrong or outdated answer gives a wrong result.</li>
+          <li>Only these two advisories are covered. This is not a security audit.</li>
+          <li>A web page cannot read the PHP runtime, packages or processes of a remote server.</li>
         </ul>
-        <p class="muted" data-i18n="indep"></p>
+        <p class="muted">dyd↻ is an independent project and is not affiliated with or endorsed by the PHP Group, Debian, Ubuntu, Docker or Plesk. The name "dyd" has not undergone trademark or domain clearance.</p>
       </div>
     </div>
   </section>
@@ -239,15 +368,15 @@
 
 <footer class="site-footer">
   <div class="container footer-inner">
-    <span data-i18n="footer.license">MIT license</span>
+    <span>MIT license</span>
     <span id="footer-verified"></span>
-    <span data-i18n="footer.review">Independent review: pending</span>
+    <span>Independent review: pending</span>
   </div>
 </footer>
 
 <script src="rules.js"></script>
 <script src="engine.js"></script>
-<script src="i18n.js"></script>
+<script src="copy.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

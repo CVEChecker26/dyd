@@ -35,6 +35,8 @@ const PAIRS = [
   ["border-strong", "bg", 3, "control border"], ["border-strong", "surface", 3, "control border on cards"], ["border-strong", "surface-2", 3, "tile and input border"],
   ["focus", "bg", 3, "focus ring"], ["focus", "surface", 3, "focus ring on cards"], ["focus", "surface-2", 3, "focus ring on inputs"],
   ["logo-letters", "bg", 4.5, "wordmark letters"],
+  ["text", "surface-3", 4.5, "text on selected chips"], ["muted", "surface-3", 4.5, "secondary text on selected chips"], ["accent", "surface-3", 3, "selected chip outline"],
+  ["border-strong", "surface-3", 3, "chip border"], ["danger", "surface-3", 4.5, "affected text on raised surfaces"],
 ];
 
 for (const [name, theme] of [["dark", dark], ["light", light]]) {

@@ -7,12 +7,24 @@
     {
       "id": "CVE-2026-109618",
       "title": "Remote code execution via out-of-memory corruption",
-      "advisory": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w"
+      "advisory": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
+      "severity": "Critical",
+      "cvss": "CVSS v4 base score 9.2",
+      "published": "2026-10-21",
+      "impact": "According to the advisory, the confirmed impact is unauthenticated remote code execution as the web worker account. The advisory reports Apache mod_php as validated, and describes PHP-FPM as susceptible based on source analysis.",
+      "mechanism": "PHP handles out-of-memory errors with longjmp(); request memory can be left uninitialised and then be read during request cleanup (Debian security tracker description).",
+      "mitigation": "The advisory says updating to a patched release is the only complete mitigation. Configuration changes it lists are partial."
     },
     {
       "id": "CVE-2026-109619",
       "title": "Remote code execution via stale global state",
-      "advisory": "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp"
+      "advisory": "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
+      "severity": "Critical",
+      "cvss": "CVSS v4 base score 9.2",
+      "published": "2026-10-21",
+      "impact": "According to the advisory, the confirmed impact is unauthenticated heap use-after-free, memory disclosure and remote code execution with the web worker's privileges.",
+      "mechanism": "Request-owned internal state can survive after its backing memory has been freed and can be used by a later request handled by the same worker (Ubuntu CVE page description).",
+      "mitigation": "The advisory says updating to a release with the complete state reset patch is the only reliable mitigation. Workers must be restarted after any configuration change."
     }
   ],
   "upstream_prerelease_branches": [
@@ -42,7 +54,8 @@
       "extra_sources": [
         "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
         "https://github.com/php/php-src/releases/tag/php-8.2.35",
-        "https://www.php.net/supported-versions.php"
+        "https://www.php.net/supported-versions.php",
+        "https://www.php.net/archive/2026.php#2026-10-21-5"
       ],
       "rationale": "Both php-src advisories list the 8.2 branch as affected below 8.2.35 and 8.2.35 as the patched release; php.net release/ChangeLog pages for 8.2.35 were read.",
       "verified_at": "2026-10-22",
@@ -66,7 +79,8 @@
       "source_url": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
       "extra_sources": [
         "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
-        "https://github.com/php/php-src/releases/tag/php-8.3.36"
+        "https://github.com/php/php-src/releases/tag/php-8.3.36",
+        "https://www.php.net/archive/2026.php#2026-10-21-5"
       ],
       "rationale": "Both php-src advisories list the 8.3 branch as affected below 8.3.36 and 8.3.36 as the patched release; php.net release/ChangeLog pages for 8.3.36 were read.",
       "verified_at": "2026-10-22",
@@ -90,7 +104,8 @@
       "source_url": "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
       "extra_sources": [
         "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
-        "https://www.php.net/ChangeLog-8.php#8.4.27"
+        "https://www.php.net/ChangeLog-8.php#8.4.27",
+        "https://www.php.net/archive/2026.php#2026-10-21-5"
       ],
       "rationale": "Both php-src advisories list the 8.4 branch as affected below 8.4.27 and 8.4.27 as the patched release; php.net release/ChangeLog pages for 8.4.27 were read.",
       "verified_at": "2026-10-22",
@@ -115,7 +130,8 @@
       "extra_sources": [
         "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
         "https://www.php.net/ChangeLog-8.php#8.5.12",
-        "https://www.php.net/releases/8_5_12.php"
+        "https://www.php.net/releases/8_5_12.php",
+        "https://www.php.net/archive/2026.php#2026-10-21-5"
       ],
       "rationale": "Both php-src advisories list the 8.5 branch as affected below 8.5.12 and 8.5.12 as the patched release; php.net release/ChangeLog pages for 8.5.12 were read.",
       "verified_at": "2026-10-22",
@@ -614,6 +630,128 @@
       "rationale": "Ubuntu CVE pages list php5 for Ubuntu 14.04 LTS (trusty) as fixed in 5.5.9+dfsg-1ubuntu4.29+esm18 for both CVEs; USN-8948-2 lists the same version.",
       "verified_at": "2026-10-22",
       "verified_by": "AI-assisted reading of official sources; independent human review pending"
+    }
+  ],
+  "announcement": {
+    "id": "2026-10-21-5",
+    "title": "Security advisory: Critical remote code execution vulnerabilities, update now",
+    "url": "https://www.php.net/archive/2026.php#2026-10-21-5",
+    "published": "2026-10-21",
+    "read_at": "2026-10-22",
+    "note": "The announcement does not list affected versions. Affected thresholds come from the two GHSA advisories.",
+    "fixed_versions": [
+      "8.5.12",
+      "8.4.27",
+      "8.3.36",
+      "8.2.35"
+    ],
+    "at_risk": [
+      "PHP-FPM",
+      "Apache with mod_php",
+      "php-cgi",
+      "FrankenPHP",
+      "LiteSpeed"
+    ],
+    "highest_risk": "mod_php",
+    "highest_risk_text": "The announcement considers the risk highest for mod_php, with a demonstrated exploit where an unauthenticated request can trigger the attack before any application code runs.",
+    "eol_text": "PHP 8.1 and older no longer receive updates from the PHP project. Some distributions and LTS vendors provide backported fixes.",
+    "backport_branches": [
+      {
+        "series": "7.4",
+        "url": "https://github.com/php/php-src/tree/PHP-7.4-CVE-2026-109618-109619"
+      },
+      {
+        "series": "8.0",
+        "url": "https://github.com/php/php-src/tree/PHP-8.0-CVE-2026-109618-109619"
+      },
+      {
+        "series": "8.1",
+        "url": "https://github.com/php/php-src/tree/PHP-8.1-CVE-2026-109618-109619"
+      }
+    ],
+    "backport_text": "The PHP security team provided minimal source backports for PHP 7.4, 8.0 and 8.1 on GitHub branches, for people building from source or without an LTS vendor. No new versions were released for these branches.",
+    "complete_fix_text": "Only an update is a complete solution. The listed measures reduce exposure to specific attack paths and do not make an installation fully fixed."
+  },
+  "prerelease_notes": {
+    "8.6": {
+      "first_fixed": "8.6.0RC4",
+      "source_url": "https://github.com/php/php-src/blob/php-8.6.0RC4/NEWS",
+      "read_at": "2026-10-22",
+      "text": "The php-src NEWS file of 8.6.0 RC4 (dated 21 Oct 2026) lists GHSA-w8hw-w9fx-j79w and GHSA-6wmf-4rv5-p3rp (CVE-2026-109618, CVE-2026-109619) as fixed. The PHP announcement does not mention 8.6."
+    }
+  },
+  "mitigations": [
+    {
+      "id": "memory_limit",
+      "cves": [
+        "CVE-2026-109618"
+      ],
+      "summary": "Set memory_limit=-1, preferably where applications cannot override it (php_admin_value in the FPM pool or Apache configuration), and check that no pool, directory or application setting puts a finite limit back.",
+      "limitation": "It removes the controllable PHP memory-limit failure, but an underlying allocation failure can still reach the vulnerable path. dyd↻'s own caution: removing the limit lets one request use all available memory, which can affect availability.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "post_max_size",
+      "cves": [
+        "CVE-2026-109618"
+      ],
+      "summary": "Set a low post_max_size (the announcement gives 8M for applications without file uploads and 32M when uploads are necessary) and keep upload_max_filesize below it.",
+      "limitation": "It narrows one attack path only. dyd↻'s own caution: a low limit can reject legitimate large requests.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "request_limits",
+      "cves": [
+        "CVE-2026-109618"
+      ],
+      "summary": "Enforce limits at the web server or proxy for decoded request size, input field count, multipart part count, header count and nesting depth. The limits must also cover requests without a usable Content-Length.",
+      "limitation": "It reduces exposure to specific paths only.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "cgroup",
+      "cves": [
+        "CVE-2026-109618"
+      ],
+      "summary": "Use a container or cgroup memory limit as an availability boundary, preferably with a policy that kills only the affected worker. Do not use RLIMIT_AS or RLIMIT_DATA.",
+      "limitation": "RLIMIT_AS and RLIMIT_DATA can cause the vulnerable allocation failure. A cgroup limit is an availability boundary, not a fix.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "upload_progress",
+      "cves": [
+        "CVE-2026-109619"
+      ],
+      "summary": "Set session.upload_progress.enabled=0 and restart every worker, in php.ini, an FPM pool or server configuration that applies before request parsing. Do not rely on ini_set() or FPM .user.ini.",
+      "limitation": "It blocks the confirmed session paths but not other variants.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "fatal_error_backtraces",
+      "cves": [
+        "CVE-2026-109619"
+      ],
+      "summary": "On PHP 8.5, set fatal_error_backtraces=0 and restart every worker.",
+      "limitation": "It blocks the confirmed fatal backtrace path only.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "diagnostics",
+      "cves": [
+        "CVE-2026-109619"
+      ],
+      "summary": "Remove invalid or deprecated settings applied per request that emit diagnostics before initialization.",
+      "limitation": "Hiding diagnostics with error_reporting, display_errors or @ does not help.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
+    },
+    {
+      "id": "fatal_errors",
+      "cves": [
+        "CVE-2026-109619"
+      ],
+      "summary": "Fix attacker-reachable fatal errors and execution timeouts, including failures in callbacks, upload or import processing and cleanup.",
+      "limitation": "It removes triggers; it does not remove the vulnerability.",
+      "source_url": "https://www.php.net/archive/2026.php#2026-10-21-5"
     }
   ]
 }

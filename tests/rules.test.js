@@ -102,3 +102,13 @@ test("no rule exists for platforms that are always 'verify'", () => {
   assert.deepStrictEqual([...platforms].sort(), ["debian", "docker", "plesk", "ubuntu", "upstream"]);
   assert.ok(!json.rules.some((r) => r.series && /^(8\.1|8\.0|7\.|5\.|8\.6)/.test(r.series) && r.platform !== "ubuntu"));
 });
+
+test("each CVE carries the advisory-based facts the report shows", () => {
+  for (const c of json.cves) {
+    for (const k of ["severity", "cvss", "published", "impact", "mechanism", "mitigation"]) assert.ok(typeof c[k] === "string" && c[k].length >= 8, `${c.id}.${k}`);
+    assert.match(c.published, DATE);
+    assert.strictEqual(c.severity, "Critical");
+    assert.match(c.impact, /remote code execution/);
+    assert.match(c.mitigation, /updat/i);
+  }
+});

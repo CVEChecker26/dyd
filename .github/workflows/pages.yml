@@ -43,7 +43,7 @@ jobs:
       - name: Assemble the site (whitelist only)
         run: |
           mkdir _site
-          cp index.html style.css app.js engine.js i18n.js rules.js rules.json .nojekyll _site/
+          cp index.html style.css app.js engine.js copy.js rules.js rules.json .nojekyll _site/
           cp -r assets _site/assets
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
