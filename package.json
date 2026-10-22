@@ -1,0 +1,18 @@
+{
+  "name": "dyd",
+  "version": "1.0.0",
+  "description": "Static, no-backend check of a declared PHP setup against two advisories (CVE-2026-109618, CVE-2026-109619).",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build:rules": "node scripts/build-rules.js",
+    "test": "node --test tests/rules.test.js tests/engine.test.js tests/i18n.test.js tests/static.test.js tests/contrast.test.js tests/workflow.test.js tests/docs.test.js",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.e2e.js",
+    "test:all": "npm test && npm run test:e2e",
+    "screenshots": "node tests/e2e/screenshots.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "playwright-core": "^1.64.1"
+  }
+}
