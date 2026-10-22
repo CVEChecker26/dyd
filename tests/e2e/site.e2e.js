@@ -256,8 +256,22 @@ describe("network, offline and CSP", () => {
     await page.goto(srv.base + "?lang=en");
     assert.strictEqual(await page.locator("#rules-error").isVisible(), true);
     assert.strictEqual(await page.locator("#assess-grid").isVisible(), false);
+    assert.ok((await page.textContent("#rules-error-detail")).includes("rules.js"));
     await ctx.close();
   });
+  for (const file of ["rules.js", "engine.js", "i18n.js"]) {
+    T(`a blocked ${file} shows the error state naming it, with no verdict`, async () => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await page.route("**/" + file, (route) => route.abort());
+      await page.goto(srv.base + "?lang=en");
+      assert.strictEqual(await page.locator("#rules-error").isVisible(), true);
+      assert.strictEqual(await page.locator("#assess-grid").isVisible(), false);
+      assert.ok((await page.textContent("#rules-error-detail")).includes(file));
+      assert.strictEqual(await page.locator("#result-heading").isVisible(), false);
+      await ctx.close();
+    });
+  }
   T("works from a local file (no server)", async () => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();

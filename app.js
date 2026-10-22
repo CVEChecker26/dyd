@@ -388,6 +388,12 @@
     applyStatic();
     ["en", "ro"].forEach(function (l) { $("lang-" + l).addEventListener("click", function () { setLang(l); }); });
     if (!ready) {
+      // Names the script that did not load, so a report can say exactly what failed (static file names only).
+      var missing = [];
+      if (!RULES || !Array.isArray(RULES.rules) || !RULES.rules.length) { missing.push("rules.js"); }
+      if (!E) { missing.push("engine.js"); }
+      if (!I) { missing.push("i18n.js"); }
+      $("rules-error-detail").textContent = "Missing or empty: " + missing.join(", ");
       $("rules-error").hidden = false; $("assess-grid").hidden = true;
       return;
     }

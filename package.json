@@ -9,6 +9,7 @@
     "test": "node --test tests/rules.test.js tests/engine.test.js tests/i18n.test.js tests/static.test.js tests/contrast.test.js tests/workflow.test.js tests/docs.test.js",
     "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.e2e.js",
     "test:all": "npm test && npm run test:e2e",
+    "check:live": "node tests/e2e/live-check.js",
     "screenshots": "node tests/e2e/screenshots.js"
   },
   "devDependencies": {
