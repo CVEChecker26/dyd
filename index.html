@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>dyd↻ · Declared PHP setup check</title>
+<meta name="description" content="Free, open-source, static page. Declare your PHP version and environment and compare it with rules derived from the official advisories for CVE-2026-109618 and CVE-2026-109619. Runs in your browser; nothing you enter is sent anywhere.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#assess" data-i18n="skip">Skip to the assessment</a>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="#top" data-i18n-aria="brand.aria" aria-label="dyd↻">
+      <svg class="logo" viewBox="0 0 360 150" role="img" aria-hidden="true" focusable="false">
+        <path class="logo-ink" d="M82 75C82 97.64 63.64 116 41 116C18.36 116 0 97.64 0 75C0 52.36 18.36 34 41 34C47.86 34 54.32 35.68 60 38.66L60 11C60 4.92 64.92 0 71 0C77.08 0 82 4.92 82 11ZM60 75C60 64.51 51.49 56 41 56C30.51 56 22 64.51 22 75C22 85.49 30.51 94 41 94C51.49 94 60 85.49 60 75Z"/>
+        <path class="logo-ink" d="M176 139C176 145.08 171.08 150 165 150C158.92 150 154 145.08 154 139L154 111.34C148.32 114.32 141.86 116 135 116C112.36 116 94 97.64 94 75L94 45C94 38.92 98.92 34 105 34C111.08 34 116 38.92 116 45L116 75C116 85.49 124.51 94 135 94C145.49 94 154 85.49 154 75L154 45C154 38.92 158.92 34 165 34C171.08 34 176 38.92 176 45Z"/>
+        <path class="logo-ink" d="M267 75C267 97.64 248.64 116 226 116C203.36 116 185 97.64 185 75C185 52.36 203.36 34 226 34C232.86 34 239.32 35.68 245 38.66L245 11C245 4.92 249.92 0 256 0C262.08 0 267 4.92 267 11ZM245 75C245 64.51 236.49 56 226 56C215.51 56 207 64.51 207 75C207 85.49 215.51 94 226 94C236.49 94 245 85.49 245 75Z"/>
+        <path class="logo-arrow" d="M357.6 85.61C353.06 102.58 338.21 114.76 320.68 115.91C303.15 117.06 286.84 106.92 280.12 90.69C273.4 74.46 277.76 55.76 290.97 44.17C304.17 32.59 323.29 30.71 338.5 39.49L340.93 35.28C342.15 33.17 344.49 31.98 346.91 32.23C349.33 32.48 351.37 34.14 352.13 36.45L359.46 59.01C360 60.67 359.81 62.48 358.94 64C358.07 65.51 356.59 66.58 354.88 66.94L331.68 71.87C329.3 72.37 326.85 71.43 325.42 69.46C323.99 67.49 323.85 64.87 325.07 62.76L327.5 58.55C320.45 54.48 311.59 55.35 305.47 60.72C299.35 66.08 297.33 74.75 300.45 82.27C303.56 89.79 311.12 94.49 319.24 93.96C327.36 93.43 334.25 87.78 336.35 79.92C337.92 74.05 343.96 70.57 349.82 72.14C355.69 73.71 359.18 79.74 357.6 85.61Z"/>
+      </svg>
+    </a>
+    <nav class="nav" data-i18n-aria="nav.aria" aria-label="Main navigation">
+      <ul>
+        <li><a href="#assess" data-i18n="nav.assess">Assessment</a></li>
+        <li><a href="#how" data-i18n="nav.how">How it decides</a></li>
+        <li><a href="#envs" data-i18n="nav.envs">Environments</a></li>
+        <li><a href="#sources" data-i18n="nav.sources">Official sources</a></li>
+        <li><a href="#privacy" data-i18n="nav.privacy">Privacy and limits</a></li>
+      </ul>
+    </nav>
+    <div class="lang" role="group" data-i18n-aria="lang.aria" aria-label="Language">
+      <button type="button" id="lang-en" data-lang="en" aria-pressed="true" lang="en" data-i18n="lang.en" data-i18n-aria="lang.en.aria" aria-label="EN – English">EN</button>
+      <button type="button" id="lang-ro" data-lang="ro" aria-pressed="false" lang="ro" data-i18n="lang.ro" data-i18n-aria="lang.ro.aria" aria-label="RO – Română">RO</button>
+    </div>
+  </div>
+</header>
+
+<noscript>
+  <div class="container"><p class="notice notice-warn">dyd↻ needs JavaScript to compare the data you declare with the rules. Nothing you enter is collected or sent; the script only runs in your browser.</p></div>
+</noscript>
+
+<main id="main">
+  <section class="hero container" id="top">
+    <div class="hero-copy">
+      <h1 data-i18n="hero.h1">Check a declared PHP setup against two critical advisories.</h1>
+      <p class="lead" data-i18n="hero.lead">Declare your PHP version and environment. dyd↻ compares them with rules derived from the official advisories for CVE-2026-109618 and CVE-2026-109619 and shows what the declared data says.</p>
+      <p><a class="btn btn-primary" href="#assess" data-i18n="hero.cta">Start the assessment</a></p>
+      <ul class="facts">
+        <li><strong data-i18n="hero.fact1.t">No scanning</strong><span data-i18n="hero.fact1.d">It never contacts a server. You type the data in.</span></li>
+        <li><strong data-i18n="hero.fact2.t">Runs in your browser</strong><span data-i18n="hero.fact2.d">No backend, account, cookies, analytics or storage.</span></li>
+        <li><strong data-i18n="hero.fact3.t">Open source</strong><span data-i18n="hero.fact3.d">Rules and logic are plain files you can read.</span></li>
+      </ul>
+    </div>
+    <aside class="card status-card" aria-labelledby="status-h">
+      <h2 id="status-h" data-i18n="status.h">Rules status</h2>
+      <dl class="kv" id="status-list"></dl>
+      <p class="notice notice-warn" id="stale-warning" hidden></p>
+    </aside>
+  </section>
+
+  <section class="section container" id="assess" aria-labelledby="assess-h">
+    <h2 id="assess-h" data-i18n="assess.h">Assessment</h2>
+    <p class="muted" data-i18n="assess.intro">Answer a few questions about the PHP that serves your site. Nothing leaves this page.</p>
+
+    <div class="notice notice-danger" id="rules-error" role="alert" hidden>
+      <strong data-i18n="error.rules.title">The rules could not be loaded</strong>
+      <p data-i18n="error.rules.body">The rules file is missing or unreadable, so the assessment is disabled. Reload the page; if the problem stays, report it to the project.</p>
+    </div>
+
+    <div class="assess-grid" id="assess-grid">
+      <div class="card assess-card">
+        <ol class="stepper" id="stepper" data-i18n-aria="stepper.aria" aria-label="Progress">
+          <li data-step="1"><span class="stepper-n">1</span><span data-i18n="step.env">Environment</span></li>
+          <li data-step="2"><span class="stepper-n">2</span><span data-i18n="step.version">Version</span></li>
+          <li data-step="3"><span class="stepper-n">3</span><span data-i18n="step.confirm">Confirmations</span></li>
+          <li data-step="4"><span class="stepper-n">4</span><span data-i18n="step.result">Result</span></li>
+        </ol>
+        <p class="step-status" id="step-status" role="status" aria-live="polite"></p>
+
+        <form id="form" novalidate autocomplete="off">
+          <div class="step" id="step-1" data-step="1">
+            <fieldset id="fs-env" aria-describedby="err-platform">
+              <legend data-i18n="env.legend">Where does the PHP that serves your site run?</legend>
+              <div class="tiles">
+                <label class="tile"><input type="radio" name="platform" value="upstream"><span class="tile-t" data-i18n="env.upstream">PHP from php.net</span><span class="tile-d" data-i18n="env.upstream.d">Built from source or official binaries</span></label>
+                <label class="tile"><input type="radio" name="platform" value="docker"><span class="tile-t" data-i18n="env.docker">Docker container</span><span class="tile-d" data-i18n="env.docker.d">Official php image or another image</span></label>
+                <label class="tile"><input type="radio" name="platform" value="debian"><span class="tile-t" data-i18n="env.debian">Debian</span><span class="tile-d" data-i18n="env.debian.d">Distribution PHP packages</span></label>
+                <label class="tile"><input type="radio" name="platform" value="ubuntu"><span class="tile-t" data-i18n="env.ubuntu">Ubuntu</span><span class="tile-d" data-i18n="env.ubuntu.d">Distribution PHP packages</span></label>
+                <label class="tile"><input type="radio" name="platform" value="plesk"><span class="tile-t" data-i18n="env.plesk">Plesk</span><span class="tile-d" data-i18n="env.plesk.d">PHP provided by Plesk</span></label>
+                <label class="tile"><input type="radio" name="platform" value="other"><span class="tile-t" data-i18n="env.other">Something else / not sure</span><span class="tile-d" data-i18n="env.other.d">Another system, or you do not know</span></label>
+              </div>
+              <p class="field-error" id="err-platform" role="alert"></p>
+            </fieldset>
+
+            <fieldset id="fs-docker" aria-describedby="err-docker_image" hidden>
+              <legend data-i18n="docker.legend">Which image?</legend>
+              <label class="choice"><input type="radio" name="docker_image" value="official"><span data-i18n="docker.official">The official php image from Docker Hub</span></label>
+              <label class="choice"><input type="radio" name="docker_image" value="other"><span data-i18n="docker.other">Another or derived image</span></label>
+              <p class="field-error" id="err-docker_image" role="alert"></p>
+            </fieldset>
+
+            <fieldset id="fs-plesk" aria-describedby="err-plesk_os" hidden>
+              <legend data-i18n="plesk.legend">Which Plesk system?</legend>
+              <label class="choice"><input type="radio" name="plesk_os" value="linux"><span data-i18n="plesk.linux">Plesk on Linux</span></label>
+              <label class="choice"><input type="radio" name="plesk_os" value="windows"><span data-i18n="plesk.windows">Plesk on Windows</span></label>
+              <p class="field-error" id="err-plesk_os" role="alert"></p>
+            </fieldset>
+
+            <div class="field" id="fs-release" hidden>
+              <label for="release" data-i18n="release.label">Release</label>
+              <select id="release" name="release" aria-describedby="err-release"></select>
+              <p class="field-error" id="err-release" role="alert"></p>
+            </div>
+          </div>
+
+          <div class="step" id="step-2" data-step="2" hidden>
+            <div class="field">
+              <label for="version" id="version-label" data-i18n="version.label.upstream">Declared PHP version</label>
+              <p class="hint" id="version-hint"></p>
+              <input class="mono" type="text" id="version" name="version" spellcheck="false" autocapitalize="off" autocorrect="off" aria-describedby="version-hint err-version">
+              <p class="field-error" id="err-version" role="alert"></p>
+            </div>
+            <details class="find">
+              <summary data-i18n="version.find">How do I find it?</summary>
+              <div class="find-body">
+                <p id="find-intro"></p>
+                <div class="cmd">
+                  <code id="find-cmd" class="mono"></code>
+                  <button type="button" class="btn btn-small" id="copy-btn" data-i18n="btn.copy" data-i18n-aria="copy.aria" aria-label="Copy the command">Copy</button>
+                </div>
+                <p class="hint" id="copy-hint" role="status" hidden></p>
+                <p class="muted" id="find-note"></p>
+              </div>
+            </details>
+          </div>
+
+          <div class="step" id="step-3" data-step="3" hidden>
+            <fieldset id="fs-source" aria-describedby="err-source">
+              <legend data-i18n="source.legend">Where did you read that version?</legend>
+              <label class="choice"><input type="radio" name="source" value="web"><span data-i18n="source.web">From the PHP or package that actually serves the site</span></label>
+              <label class="choice"><input type="radio" name="source" value="unsure"><span data-i18n="source.unsure">Only from a command-line reading, or I am not sure</span></label>
+              <p class="field-error" id="err-source" role="alert"></p>
+            </fieldset>
+            <fieldset id="fs-restart" aria-describedby="err-restarted">
+              <legend data-i18n="restart.legend">PHP processes were started or restarted after installation (PHP-FPM, Apache, other), or the container was recreated.</legend>
+              <label class="choice"><input type="radio" name="restarted" value="yes"><span data-i18n="restart.yes">Yes</span></label>
+              <label class="choice"><input type="radio" name="restarted" value="no"><span data-i18n="restart.no">No</span></label>
+              <label class="choice"><input type="radio" name="restarted" value="unknown"><span data-i18n="restart.unknown">I don't know</span></label>
+              <p class="field-error" id="err-restarted" role="alert"></p>
+            </fieldset>
+          </div>
+
+          <div class="actions" id="actions">
+            <button type="button" class="btn" id="btn-back" data-i18n="btn.back" hidden>Back</button>
+            <button type="button" class="btn btn-primary" id="btn-next" data-i18n="btn.next">Next</button>
+          </div>
+        </form>
+
+        <div id="result" hidden>
+          <h3 id="result-heading" tabindex="-1"></h3>
+          <div id="result-body"></div>
+          <div class="actions">
+            <button type="button" class="btn" id="btn-edit" data-i18n="btn.edit">Edit answers</button>
+            <button type="button" class="btn btn-primary" id="btn-new" data-i18n="btn.new">New assessment</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="card summary-card" aria-labelledby="summary-h">
+        <h3 id="summary-h" data-i18n="summary.h">Declared data</h3>
+        <div id="summary"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section container" id="how" aria-labelledby="how-h">
+    <h2 id="how-h" data-i18n="how.h">How it decides</h2>
+    <p class="muted" data-i18n="how.lead">The checks run in a fixed order and stop at the first one that decides.</p>
+    <div class="cards3">
+      <article class="card verdict-card verdict-affected"><h3><span class="icon" aria-hidden="true">!</span> <span data-i18n="verdict.affected">Affected according to the advisory</span></h3><p data-i18n="how.affected.d"></p></article>
+      <article class="card verdict-card verdict-remediated"><h3><span class="icon" aria-hidden="true">✓</span> <span data-i18n="verdict.remediated">Remediated according to the declared data</span></h3><p data-i18n="how.remediated.d"></p></article>
+      <article class="card verdict-card verdict-verify"><h3><span class="icon" aria-hidden="true">?</span> <span data-i18n="verdict.verify">Needs further verification</span></h3><p data-i18n="how.verify.d"></p></article>
+    </div>
+    <div class="two-col">
+      <div>
+        <h3 data-i18n="how.order.h">Order of the checks</h3>
+        <ol class="plain-list">
+          <li data-i18n="how.step.1"></li><li data-i18n="how.step.2"></li><li data-i18n="how.step.3"></li><li data-i18n="how.step.4"></li>
+          <li data-i18n="how.step.5"></li><li data-i18n="how.step.6"></li><li data-i18n="how.step.7"></li><li data-i18n="how.step.8"></li>
+        </ol>
+      </div>
+      <div>
+        <h3 data-i18n="never.h">What dyd↻ never does</h3>
+        <ul class="plain-list">
+          <li data-i18n="never.1"></li><li data-i18n="never.2"></li><li data-i18n="never.3"></li>
+          <li data-i18n="never.4"></li><li data-i18n="never.5"></li><li data-i18n="never.6"></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section container" id="envs" aria-labelledby="envs-h">
+    <h2 id="envs-h" data-i18n="envs.h">Environments covered</h2>
+    <p class="muted" data-i18n="envs.lead"></p>
+    <table class="data-table" id="envs-table"></table>
+    <h3 data-i18n="envs.always.h">Always "Needs further verification"</h3>
+    <ul class="chips">
+      <li data-i18n="envs.always.1"></li><li data-i18n="envs.always.2"></li><li data-i18n="envs.always.3"></li><li data-i18n="envs.always.4"></li>
+      <li data-i18n="envs.always.5"></li><li data-i18n="envs.always.6"></li><li data-i18n="envs.always.7"></li><li data-i18n="envs.always.8"></li>
+      <li data-i18n="envs.always.9"></li><li data-i18n="envs.always.10"></li><li data-i18n="envs.always.11"></li>
+    </ul>
+  </section>
+
+  <section class="section container" id="sources" aria-labelledby="sources-h">
+    <h2 id="sources-h" data-i18n="sources.h">Official sources</h2>
+    <p class="muted" data-i18n="sources.lead"></p>
+    <div id="sources-list" class="sources"></div>
+  </section>
+
+  <section class="section container" id="privacy" aria-labelledby="privacy-h">
+    <h2 id="privacy-h" data-i18n="privacy.h">Privacy and limits</h2>
+    <div class="two-col">
+      <div>
+        <p data-i18n="privacy.1"></p>
+        <p data-i18n="privacy.offline"></p>
+        <p data-i18n="privacy.2"></p>
+      </div>
+      <div>
+        <ul class="plain-list">
+          <li data-i18n="limits.1"></li><li data-i18n="limits.2"></li><li data-i18n="limits.3"></li>
+        </ul>
+        <p class="muted" data-i18n="indep"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <span data-i18n="footer.license">MIT license</span>
+    <span id="footer-verified"></span>
+    <span data-i18n="footer.review">Independent review: pending</span>
+  </div>
+</footer>
+
+<script src="rules.js"></script>
+<script src="engine.js"></script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
