@@ -4,7 +4,10 @@ All notable changes are recorded here. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-### Changed (product transformation, not yet published)
+### Published
+- 2026-10-22: the guided assessment (pull request 1, merge commit `3456e5f`) was deployed to GitHub Pages and checked live: the Pages workflow succeeded, https://cvechecker26.github.io/dyd/ answered HTTP 200 with the new title, `app.js`, `engine.js`, `copy.js`, `rules.js` and `rules.json` were served with HTTP 200 (`i18n.js` returns 404, as it was removed), 22 rules loaded, an assessment produced the expected result and the console had no errors (`npm run check:live`).
+
+### Changed (product transformation)
 - Guided four-step assessment (site, hosting, PHP, update status) replaces the single form; questions adapt to earlier answers and answers are kept when going back.
 - Domain input with strict normalisation (host name only; credentials, ports, IP addresses, internal names and other schemes rejected) and an optional, user-started HTTPS reachability check. A failed request is inconclusive and never changes a status.
 - Each CVE is evaluated independently, with statuses "Affected according to the available evidence", "Remediation supported by the available evidence" and "Needs further verification".
